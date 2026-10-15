@@ -40,13 +40,16 @@ jobs:
             sleep 1
           done
           set -x
-          curl -sf http://localhost:8090/api/status | grep -q '"role":"ceo"'
-          curl -sf http://localhost:8090/ | grep -qi '<html'
+          STATUS=$(curl -sf http://localhost:8090/api/status)
+          grep -q '"role":"ceo"' <<<"$STATUS"
+          PAGE=$(curl -sf http://localhost:8090/)
+          grep -qi '<html' <<<"$PAGE"
           TOKEN=$(curl -sf -X POST http://localhost:8090/api/login \
             -H 'Content-Type: application/json' \
             -d '{"role":"ceo","pin":"482913","device":"CI"}' | sed -E 's/.*"token":"([0-9a-f]+)".*/\1/')
           test ${#TOKEN} -eq 64
-          curl -sf -H "Authorization: Bearer $TOKEN" http://localhost:8090/api/session | grep -q '"role":"ceo"'
+          SESSION=$(curl -sf -H "Authorization: Bearer $TOKEN" http://localhost:8090/api/session)
+          grep -q '"role":"ceo"' <<<"$SESSION"
           code=$(curl -s -o /dev/null -w '%{http_code}' -X POST http://localhost:8090/api/login \
             -H 'Content-Type: application/json' -d '{"role":"ceo","pin":"000000","device":"CI"}')
           test "$code" = "401"
