@@ -1,0 +1,10 @@
+* text=auto eol=lf
+*.bat text eol=crlf
+*.ttf binary
+*.woff2 binary
+*.png binary
+*.db binary
+
+# Third-party bundles: hide from language stats and diffs
+public/vendor/** linguist-vendored
+legacy/** linguist-documentation

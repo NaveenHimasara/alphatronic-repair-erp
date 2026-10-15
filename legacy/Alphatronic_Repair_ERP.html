@@ -1,0 +1,1715 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FixMaster ERP - Repair Shop Management System</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- PeerJS for WebRTC P2P Wi-Fi Sync -->
+    <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+    <!-- Inter Font -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        brand: {
+                            50: '#f0f9ff',
+                            500: '#0ea5e9',
+                            600: '#0284c7',
+                            700: '#0369a1',
+                            900: '#0c4a6e',
+                        },
+                        darkbg: '#0f172a',
+                        cardbg: '#1e293b',
+                        borderbg: '#334155'
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        /* Custom styling for industrial sleek dark ERP UI */
+        body {
+            background-color: #0b0f19;
+            color: #f1f5f9;
+            font-family: 'Inter', sans-serif;
+        }
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: #1e293b;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #475569;
+            border-radius: 4px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+            background: #64748b;
+        }
+        .glass-panel {
+            background: rgba(30, 41, 59, 0.85);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+        }
+        .badge-urgent {
+            animation: pulse-red 2s infinite;
+        }
+        @keyframes pulse-red {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.6; }
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col custom-scrollbar">
+
+    <!-- Top Header & Role Switcher -->
+    <header class="glass-panel sticky top-0 z-40 border-b border-slate-800 px-4 py-3">
+        <div class="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4">
+            <!-- Brand Logo & Title -->
+            <div class="flex items-center space-x-3 w-full md:w-auto justify-between">
+                <div class="flex items-center space-x-3">
+                    <div class="bg-gradient-to-tr from-cyan-500 to-blue-600 p-2.5 rounded-xl shadow-lg shadow-cyan-500/20">
+                        <i class="fa-solid fa-wrench text-xl text-white"></i>
+                    </div>
+                    <div>
+                        <h1 class="text-xl font-bold tracking-wider text-white flex items-center gap-2">
+                            FIXMASTER <span class="text-xs px-2 py-0.5 rounded bg-cyan-500/20 text-cyan-400 border border-cyan-500/30 font-semibold">ERP v2.5</span>
+                        </h1>
+                        <p class="text-xs text-slate-400">Multi-Node Repair Shop Management System</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Role Selector Tabs -->
+            <div class="flex items-center bg-slate-900/80 p-1.5 rounded-xl border border-slate-700/60 w-full md:w-auto justify-center">
+                <button id="btn-role-ceo" onclick="switchRole('ceo')" class="role-btn flex items-center space-x-2 px-4 py-2 rounded-lg text-xs font-semibold transition-all duration-200">
+                    <i class="fa-solid fa-user-tie"></i>
+                    <span>CEO View</span>
+                </button>
+                <button id="btn-role-intake" onclick="switchRole('intake')" class="role-btn flex items-center space-x-2 px-4 py-2 rounded-lg text-xs font-semibold transition-all duration-200">
+                    <i class="fa-solid fa-clipboard-list"></i>
+                    <span>Front Desk (Intake)</span>
+                </button>
+                <button id="btn-role-tech" onclick="switchRole('tech')" class="role-btn flex items-center space-x-2 px-4 py-2 rounded-lg text-xs font-semibold transition-all duration-200">
+                    <i class="fa-solid fa-microchip"></i>
+                    <span>Technician</span>
+                </button>
+            </div>
+
+            <!-- Wi-Fi Sync / P2P Status Bar -->
+            <div class="flex items-center space-x-3 w-full md:w-auto justify-end text-xs">
+                <div class="flex items-center space-x-2 bg-slate-900 px-3 py-2 rounded-xl border border-slate-700">
+                    <span id="network-status-dot" class="w-2.5 h-2.5 rounded-full bg-amber-500 animate-pulse"></span>
+                    <span id="network-status-text" class="text-slate-300 font-mono text-xs">Offline Sync</span>
+                </div>
+                <button onclick="openSyncModal()" class="px-3 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-600 rounded-xl font-medium text-cyan-400 hover:text-cyan-300 transition flex items-center space-x-1.5">
+                    <i class="fa-solid fa-network-wired"></i>
+                    <span>P2P Sync</span>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content Body -->
+    <main class="flex-1 max-w-7xl w-full mx-auto p-4 md:p-6 space-y-6">
+
+        <!-- 1. CEO VIEW DASHBOARD -->
+        <section id="view-ceo" class="role-view space-y-6 hidden">
+            <!-- Header Info -->
+            <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-slate-800/40 p-5 rounded-2xl border border-slate-700/50">
+                <div>
+                    <h2 class="text-2xl font-bold text-white flex items-center gap-2">
+                        <i class="fa-solid fa-chart-line text-cyan-400"></i> Executive Overview Dashboard
+                    </h2>
+                    <p class="text-xs text-slate-400 mt-1">Real-time shop financial analytics, repair approval queue, and inventory usage stats.</p>
+                </div>
+                <div class="flex items-center gap-3">
+                    <button onclick="exportDataJSON()" class="px-3 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-600 rounded-xl text-xs font-semibold text-slate-200 transition flex items-center gap-2">
+                        <i class="fa-solid fa-download"></i> Backup Data
+                    </button>
+                    <button onclick="clearAllDataPrompt()" class="px-3 py-2 bg-red-950/40 hover:bg-red-900/60 border border-red-700/50 rounded-xl text-xs font-semibold text-red-300 transition flex items-center gap-2">
+                        <i class="fa-solid fa-trash-can"></i> Reset DB
+                    </button>
+                </div>
+            </div>
+
+            <!-- CEO KPI Cards Grid -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3">
+                <div class="glass-panel p-4 rounded-2xl border-l-4 border-emerald-500">
+                    <div class="flex items-center justify-between text-slate-400 text-xs font-semibold">
+                        <span>CONFIRMED INCOME</span>
+                        <i class="fa-solid fa-sack-dollar text-emerald-400 text-base"></i>
+                    </div>
+                    <div class="text-xl font-extrabold text-white mt-1" id="kpi-income">Rs. 0.00</div>
+                    <p class="text-[10px] text-emerald-400 mt-0.5"><i class="fa-solid fa-circle-check"></i> Final Approved Revenue</p>
+                </div>
+
+                <div class="glass-panel p-4 rounded-2xl border-l-4 border-amber-500 bg-amber-950/10">
+                    <div class="flex items-center justify-between text-slate-400 text-xs font-semibold">
+                        <span>1. PENDING REPAIRS</span>
+                        <i class="fa-solid fa-clock text-amber-400 text-base"></i>
+                    </div>
+                    <div class="text-xl font-extrabold text-amber-300 mt-1" id="kpi-pending-repairs">0</div>
+                    <p class="text-[10px] text-amber-400 mt-0.5">In Queue & In Progress</p>
+                </div>
+
+                <div class="glass-panel p-4 rounded-2xl border-l-4 border-blue-500 bg-blue-950/10">
+                    <div class="flex items-center justify-between text-slate-400 text-xs font-semibold">
+                        <span>2. COMPLETED REPAIRS</span>
+                        <i class="fa-solid fa-circle-check text-blue-400 text-base"></i>
+                    </div>
+                    <div class="text-xl font-extrabold text-blue-300 mt-1" id="kpi-completed-repairs">0</div>
+                    <p class="text-[10px] text-blue-400 mt-0.5">Finished Diagnosis/Jobs</p>
+                </div>
+
+                <div class="glass-panel p-4 rounded-2xl border-l-4 border-emerald-400">
+                    <div class="flex items-center justify-between text-slate-400 text-xs font-semibold">
+                        <span>└ SUCCESSFUL FIX</span>
+                        <i class="fa-solid fa-wand-magic-sparkles text-emerald-400 text-base"></i>
+                    </div>
+                    <div class="text-xl font-extrabold text-white mt-1" id="kpi-successful-repairs">0</div>
+                    <p class="text-[10px] text-emerald-400 mt-0.5">Completed Outcome</p>
+                </div>
+
+                <div class="glass-panel p-4 rounded-2xl border-l-4 border-rose-500">
+                    <div class="flex items-center justify-between text-slate-400 text-xs font-semibold">
+                        <span>└ DEAD / UNREPAIRABLE</span>
+                        <i class="fa-solid fa-skull text-rose-400 text-base"></i>
+                    </div>
+                    <div class="text-xl font-extrabold text-white mt-1" id="kpi-dead-repairs">0</div>
+                    <p class="text-[10px] text-rose-400 mt-0.5">Completed Outcome</p>
+                </div>
+
+                <div class="glass-panel p-4 rounded-2xl border-l-4 border-purple-500 bg-purple-950/10">
+                    <div class="flex items-center justify-between text-slate-400 text-xs font-semibold">
+                        <span>WAITING CEO BILL</span>
+                        <i class="fa-solid fa-user-clock text-purple-400 text-base"></i>
+                    </div>
+                    <div class="text-xl font-extrabold text-purple-300 mt-1" id="kpi-waiting-ceo">0</div>
+                    <p class="text-[10px] text-purple-400 mt-0.5">Requires CEO Confirmation</p>
+                </div>
+            </div>
+
+            <!-- CEO Master Table & Spare Parts Summary -->
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <!-- Master Table (2 Cols) -->
+                <div class="lg:col-span-2 glass-panel p-5 rounded-2xl space-y-4">
+                    <div class="flex flex-col sm:flex-row items-center justify-between gap-3 pb-3 border-b border-slate-700/60">
+                        <h3 class="font-bold text-slate-200 text-base flex items-center gap-2">
+                            <i class="fa-solid fa-list-check text-cyan-400"></i> Master Repairs & Billing Registry
+                        </h3>
+                        <!-- Search & Filter Controls -->
+                        <div class="flex items-center gap-2 w-full sm:w-auto">
+                            <div class="relative w-full sm:w-48">
+                                <i class="fa-solid fa-search absolute left-3 top-2.5 text-slate-400 text-xs"></i>
+                                <input type="text" id="ceo-search" oninput="renderCEOTable()" placeholder="Search customer, bill, phone..." class="w-full bg-slate-900 border border-slate-700 text-xs text-white rounded-lg pl-8 pr-3 py-1.5 focus:border-cyan-500 focus:outline-none">
+                            </div>
+                            <select id="ceo-filter-status" onchange="renderCEOTable()" class="bg-slate-900 border border-slate-700 text-xs text-slate-300 rounded-lg px-2 py-1.5 focus:border-cyan-500 focus:outline-none">
+                                <option value="ALL">All Repairs</option>
+                                <option value="PENDING_GROUP">1. Pending Repairs (In Queue/Progress)</option>
+                                <option value="COMPLETED_GROUP">2. Completed Repairs (Finished Jobs)</option>
+                                <option value="SUCCESSFUL">└ Completed: Successful Repair</option>
+                                <option value="UNREPAIRABLE">└ Completed: Dead / Unrepairable</option>
+                                <option value="WAITING_CEO">Waiting CEO Billing Review</option>
+                                <option value="CEO_CONFIRMED">CEO Confirmed Revenue</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- Scrollable Table -->
+                    <div class="overflow-x-auto custom-scrollbar">
+                        <table class="w-full text-left text-xs text-slate-300">
+                            <thead class="bg-slate-900/80 text-slate-400 uppercase font-semibold border-b border-slate-700">
+                                <tr>
+                                    <th class="p-3">Bill #</th>
+                                    <th class="p-3">Customer / Phone</th>
+                                    <th class="p-3">Product</th>
+                                    <th class="p-3">Base Fee</th>
+                                    <th class="p-3">Parts Fee</th>
+                                    <th class="p-3">Total Bill</th>
+                                    <th class="p-3">Status</th>
+                                    <th class="p-3 text-right">Action</th>
+                                </tr>
+                            </thead>
+                            <tbody id="ceo-table-body" class="divide-y divide-slate-800">
+                                <!-- Populated dynamically -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Spare Parts Summary Sidebar -->
+                <div class="glass-panel p-5 rounded-2xl space-y-4">
+                    <h3 class="font-bold text-slate-200 text-base flex items-center gap-2 pb-3 border-b border-slate-700/60">
+                        <i class="fa-solid fa-boxes-packing text-amber-400"></i> Parts Used & Component Costs Log
+                    </h3>
+                    <p class="text-xs text-slate-400">Consolidated SKU usage recorded by technicians across all repair tasks.</p>
+                    <div id="ceo-parts-summary" class="space-y-2.5 max-h-[380px] overflow-y-auto custom-scrollbar pr-1">
+                        <!-- Populated dynamically -->
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- 2. FRONT DESK (ORDER INTAKE & LOOKUP) VIEW -->
+        <section id="view-intake" class="role-view space-y-6 hidden">
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <!-- Order Creation Form -->
+                <div class="lg:col-span-1 glass-panel p-6 rounded-2xl space-y-5 border border-cyan-500/20">
+                    <div class="border-b border-slate-700 pb-3">
+                        <h2 class="text-xl font-bold text-white flex items-center gap-2">
+                            <i class="fa-solid fa-file-circle-plus text-cyan-400"></i> Register New Repair
+                        </h2>
+                        <p class="text-xs text-slate-400 mt-1">Take order details from customer & print bill token.</p>
+                    </div>
+
+                    <form id="order-intake-form" onsubmit="handleCreateOrder(event)" class="space-y-4">
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-300 mb-1">Bill / Order ID Number</label>
+                            <div class="flex items-center gap-2">
+                                <input type="text" id="intake-bill" required readonly class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs font-mono text-cyan-400 font-bold focus:outline-none">
+                                <button type="button" onclick="generateNewBillId()" class="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs border border-slate-600 transition" title="Regenerate ID">
+                                    <i class="fa-solid fa-arrows-rotate"></i>
+                                </button>
+                            </div>
+                        </div>
+
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-300 mb-1">Customer Full Name *</label>
+                            <input type="text" id="intake-customer" required placeholder="e.g. John Doe" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:border-cyan-500 focus:outline-none transition">
+                        </div>
+
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-300 mb-1">Contact Phone Number *</label>
+                            <input type="tel" id="intake-phone" required placeholder="e.g. +1 555-0199" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:border-cyan-500 focus:outline-none transition">
+                        </div>
+
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-300 mb-1">Product Name / Model / Serial *</label>
+                            <input type="text" id="intake-product" required placeholder="e.g. Dell XPS 15 / iPhone 13 Screen" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:border-cyan-500 focus:outline-none transition">
+                        </div>
+
+                        <div class="grid grid-cols-2 gap-3">
+                            <div>
+                                <label class="block text-xs font-semibold text-slate-300 mb-1">Base Service Fee (Rs.) *</label>
+                                <input type="number" step="0.01" min="0" id="intake-fee" required placeholder="85.00" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:border-cyan-500 focus:outline-none transition">
+                            </div>
+
+                            <div>
+                                <label class="block text-xs font-semibold text-slate-300 mb-1">Promised Date *</label>
+                                <input type="datetime-local" id="intake-deadline" required class="w-full bg-slate-900 border border-slate-700 rounded-xl px-2.5 py-2 text-xs text-white focus:border-cyan-500 focus:outline-none transition">
+                            </div>
+                        </div>
+
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-300 mb-1">Issue Description / Fault Note</label>
+                            <textarea id="intake-notes" rows="2" placeholder="e.g. Water damaged keyboard, won't turn on..." class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:border-cyan-500 focus:outline-none transition"></textarea>
+                        </div>
+
+                        <button type="submit" class="w-full py-3 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white font-bold text-xs rounded-xl shadow-lg shadow-cyan-500/20 transition flex items-center justify-center space-x-2">
+                            <i class="fa-solid fa-save text-sm"></i>
+                            <span>SAVE & BROADCAST ORDER</span>
+                        </button>
+                    </form>
+                </div>
+
+                <!-- Live Front Desk Active List & Search Lookup -->
+                <div class="lg:col-span-2 glass-panel p-6 rounded-2xl space-y-4">
+                    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-700">
+                        <div>
+                            <h3 class="text-lg font-bold text-white flex items-center gap-2">
+                                <i class="fa-solid fa-magnifying-glass text-cyan-400"></i> Repair Orders & Customer Search
+                            </h3>
+                            <p class="text-xs text-slate-400">Search by Phone Number or Invoice / Bill ID to check completion & full billing.</p>
+                        </div>
+                        <span class="text-xs bg-slate-800 text-slate-400 px-3 py-1 rounded-full border border-slate-700 self-start sm:self-auto" id="intake-count-badge">0 Active</span>
+                    </div>
+
+                    <!-- Search Box (UPDATE 1) -->
+                    <div class="relative">
+                        <i class="fa-solid fa-magnifying-glass absolute left-3.5 top-3 text-slate-400 text-sm"></i>
+                        <input type="text" id="intake-search-input" oninput="renderIntakeList()" placeholder="Type Customer Phone Number or Invoice / Bill # to search..." class="w-full bg-slate-900 border border-cyan-500/40 rounded-xl pl-10 pr-4 py-2.5 text-xs text-white placeholder-slate-500 focus:border-cyan-400 focus:ring-1 focus:ring-cyan-400 focus:outline-none transition">
+                    </div>
+
+                    <div id="intake-orders-list" class="space-y-3 max-h-[480px] overflow-y-auto custom-scrollbar pr-1">
+                        <!-- Dynamic list of orders -->
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- 3. TECHNICIAN VIEW DASHBOARD -->
+        <section id="view-tech" class="role-view space-y-6 hidden">
+            <!-- Priority Header Banner -->
+            <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-slate-800/60 p-5 rounded-2xl border border-slate-700">
+                <div>
+                    <h2 class="text-2xl font-bold text-white flex items-center gap-2">
+                        <i class="fa-solid fa-screwdriver-wrench text-amber-400"></i> Technician Workbench & Priority Queue
+                    </h2>
+                    <p class="text-xs text-slate-400 mt-1">Categorized by Pending vs. Completed Repairs with diagnostic outcomes logged.</p>
+                </div>
+
+                <!-- Quick Filter Tabs -->
+                <div class="flex items-center bg-slate-900/90 p-1 rounded-xl border border-slate-700 flex-wrap gap-1">
+                    <button onclick="setTechFilter('ALL')" id="tech-tab-ALL" class="tech-tab-btn px-3 py-1.5 rounded-lg text-xs font-semibold transition">All Jobs</button>
+                    <button onclick="setTechFilter('PENDING')" id="tech-tab-PENDING" class="tech-tab-btn px-3 py-1.5 rounded-lg text-xs font-semibold transition">1. Pending Repairs</button>
+                    <button onclick="setTechFilter('COMPLETED')" id="tech-tab-COMPLETED" class="tech-tab-btn px-3 py-1.5 rounded-lg text-xs font-semibold transition">2. Completed Repairs</button>
+                    <button onclick="setTechFilter('SUCCESSFUL')" id="tech-tab-SUCCESSFUL" class="tech-tab-btn px-3 py-1.5 rounded-lg text-xs font-semibold transition text-emerald-400">└ Successful</button>
+                    <button onclick="setTechFilter('UNREPAIRABLE')" id="tech-tab-UNREPAIRABLE" class="tech-tab-btn px-3 py-1.5 rounded-lg text-xs font-semibold transition text-rose-400">└ Dead / Scrap</button>
+                </div>
+            </div>
+
+            <!-- Technician Overview Statistics Cards -->
+            <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <div class="bg-slate-900/90 p-3.5 rounded-xl border border-slate-800 flex items-center justify-between">
+                    <div>
+                        <div class="text-[10px] font-semibold text-amber-400 uppercase">Pending Repairs</div>
+                        <div class="text-xl font-bold text-amber-300 mt-0.5" id="tech-stat-pending">0</div>
+                    </div>
+                    <i class="fa-solid fa-hourglass-half text-amber-400 text-lg"></i>
+                </div>
+                <div class="bg-slate-900/90 p-3.5 rounded-xl border border-slate-800 flex items-center justify-between">
+                    <div>
+                        <div class="text-[10px] font-semibold text-blue-400 uppercase">Completed Repairs</div>
+                        <div class="text-xl font-bold text-blue-300 mt-0.5" id="tech-stat-completed">0</div>
+                    </div>
+                    <i class="fa-solid fa-circle-check text-blue-400 text-lg"></i>
+                </div>
+                <div class="bg-slate-900/90 p-3.5 rounded-xl border border-slate-800 flex items-center justify-between">
+                    <div>
+                        <div class="text-[10px] font-semibold text-emerald-400 uppercase">└ Successful Fixes</div>
+                        <div class="text-xl font-bold text-emerald-300 mt-0.5" id="tech-stat-successful">0</div>
+                    </div>
+                    <i class="fa-solid fa-wand-magic-sparkles text-emerald-400 text-lg"></i>
+                </div>
+                <div class="bg-slate-900/90 p-3.5 rounded-xl border border-slate-800 flex items-center justify-between">
+                    <div>
+                        <div class="text-[10px] font-semibold text-rose-400 uppercase">└ Dead / Unrepairable</div>
+                        <div class="text-xl font-bold text-rose-300 mt-0.5" id="tech-stat-dead">0</div>
+                    </div>
+                    <i class="fa-solid fa-skull text-rose-400 text-lg"></i>
+                </div>
+            </div>
+
+            <!-- Priority Job List Grid -->
+            <div id="tech-jobs-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <!-- Dynamically populated technician order cards -->
+            </div>
+        </section>
+
+    </main>
+
+    <!-- MODAL 1: Tech Diagnostics & Parts Logger -->
+    <div id="tech-modal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-md hidden z-50 flex items-center justify-center p-4">
+        <div class="glass-panel max-w-xl w-full rounded-2xl p-6 border border-slate-700 shadow-2xl space-y-5">
+            <div class="flex items-center justify-between border-b border-slate-700 pb-3">
+                <div>
+                    <h3 class="text-lg font-bold text-white flex items-center gap-2">
+                        <i class="fa-solid fa-sliders text-cyan-400"></i> Update Technician Work Log
+                    </h3>
+                    <p class="text-xs text-slate-400" id="modal-bill-subtitle">Bill #</p>
+                </div>
+                <button onclick="closeTechModal()" class="text-slate-400 hover:text-white p-1">
+                    <i class="fa-solid fa-xmark text-xl"></i>
+                </button>
+            </div>
+
+            <form id="tech-update-form" onsubmit="handleTechUpdateSave(event)" class="space-y-4">
+                <input type="hidden" id="modal-order-id">
+
+                <!-- Primary Stage & Outcome Selection -->
+                <div class="space-y-3 bg-slate-900/80 p-3.5 rounded-xl border border-slate-800">
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-300 mb-1">Repair Workflow Stage</label>
+                        <select id="modal-stage" onchange="toggleOutcomeFieldVisibility()" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:border-cyan-500 focus:outline-none">
+                            <option value="PENDING">1. Pending Repair (Work/Diagnosis In Progress)</option>
+                            <option value="COMPLETED">2. Completed Repair (Diagnosis / Work Finished)</option>
+                        </select>
+                    </div>
+
+                    <div id="outcome-container">
+                        <label class="block text-xs font-semibold text-slate-300 mb-1">Diagnostic / Technical Outcome</label>
+                        <select id="modal-outcome" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:border-cyan-500 focus:outline-none">
+                            <option value="In Progress">Diagnosis / Repair in progress...</option>
+                            <option value="Successful">✅ Successful Repair (Fixed & Tested)</option>
+                            <option value="Unrepairable">💀 Dead Component / Unrepairable / Scrap</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- Diagnostic Comments -->
+                <div>
+                    <label class="block text-xs font-semibold text-slate-300 mb-1">Technician Diagnostic Comments</label>
+                    <div class="flex flex-wrap gap-2 mb-2">
+                        <button type="button" onclick="appendQuickComment('Product dead / Irreparable mainboard component failure.')" class="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-[11px] text-slate-300 rounded-lg border border-slate-700">
+                            💀 Dead / Irreparable
+                        </button>
+                        <button type="button" onclick="appendQuickComment('Fixed successfully without replacing parts (Cleaned/Soldered).')" class="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-[11px] text-slate-300 rounded-lg border border-slate-700">
+                            ⚡ Repaired without parts
+                        </button>
+                        <button type="button" onclick="appendQuickComment('Replaced faulty components and tested thoroughly.')" class="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-[11px] text-slate-300 rounded-lg border border-slate-700">
+                            🛠️ Components Replaced
+                        </button>
+                    </div>
+                    <textarea id="modal-comment" rows="3" placeholder="Write diagnostic report or test notes..." class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:border-cyan-500 focus:outline-none"></textarea>
+                </div>
+
+                <!-- Components / Parts Used Tracker -->
+                <div class="space-y-2 border-t border-slate-700/60 pt-3">
+                    <div class="flex items-center justify-between">
+                        <label class="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
+                            <i class="fa-solid fa-microchip text-amber-400"></i> Components / Parts Used
+                        </label>
+                        <button type="button" onclick="addPartRow()" class="px-2.5 py-1 bg-cyan-950 hover:bg-cyan-900 text-cyan-300 text-[11px] font-semibold rounded-lg border border-cyan-800 transition flex items-center gap-1">
+                            <i class="fa-solid fa-plus"></i> Add Part
+                        </button>
+                    </div>
+
+                    <div id="modal-parts-container" class="space-y-2 max-h-40 overflow-y-auto custom-scrollbar pr-1">
+                        <!-- Part rows populated dynamically -->
+                    </div>
+                </div>
+
+                <div class="flex items-center justify-end space-x-3 pt-3 border-t border-slate-700">
+                    <button type="button" onclick="closeTechModal()" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold rounded-xl transition">Cancel</button>
+                    <button type="submit" class="px-5 py-2 bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-bold rounded-xl shadow-lg shadow-cyan-600/30 transition">Save & Sync</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- MODAL 2: CEO Final Billing & Confirmation Tuning (UPDATE 3 & 4) -->
+    <div id="ceo-confirm-modal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-md hidden z-50 flex items-center justify-center p-4">
+        <div class="glass-panel max-w-2xl w-full rounded-2xl p-6 border border-purple-500/30 shadow-2xl space-y-5">
+            <div class="flex items-center justify-between border-b border-slate-700 pb-3">
+                <div>
+                    <h3 class="text-lg font-bold text-white flex items-center gap-2">
+                        <i class="fa-solid fa-user-check text-purple-400"></i> CEO Final Billing & Service Confirmation
+                    </h3>
+                    <p class="text-xs text-slate-400" id="ceo-modal-subtitle">Bill #</p>
+                </div>
+                <button onclick="closeCEOModal()" class="text-slate-400 hover:text-white p-1">
+                    <i class="fa-solid fa-xmark text-xl"></i>
+                </button>
+            </div>
+
+            <form id="ceo-confirm-form" onsubmit="handleCEOBillingConfirm(event)" class="space-y-4">
+                <input type="hidden" id="ceo-modal-order-id">
+
+                <!-- Tech Summary Review Box -->
+                <div class="bg-slate-900 p-4 rounded-xl border border-slate-800 space-y-2 text-xs">
+                    <div class="text-slate-400"><strong class="text-slate-200">Customer:</strong> <span id="ceo-review-customer"></span></div>
+                    <div class="text-slate-400"><strong class="text-slate-200">Product:</strong> <span id="ceo-review-product"></span></div>
+                    <div class="text-slate-400"><strong class="text-slate-200">Tech Diagnostic Notes:</strong></div>
+                    <p class="p-2 bg-slate-950 rounded-lg text-cyan-300 italic text-[11px]" id="ceo-review-notes"></p>
+                </div>
+
+                <!-- Price Tuning Fields -->
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-300 mb-1">Base Service Charge (Rs.)</label>
+                        <input type="number" step="0.01" min="0" id="ceo-base-fee" oninput="calculateCEOGrandTotal()" required class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:border-purple-500 focus:outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-300 mb-1">Additional Hardware / Handling Fee (Rs.)</label>
+                        <input type="number" step="0.01" min="0" id="ceo-extra-fee" oninput="calculateCEOGrandTotal()" placeholder="0.00" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:border-purple-500 focus:outline-none">
+                    </div>
+                </div>
+
+                <!-- Spare Parts Unit Cost Editor -->
+                <div class="space-y-2">
+                    <label class="text-xs font-semibold text-slate-300 flex items-center justify-between">
+                        <span><i class="fa-solid fa-tags text-amber-400 mr-1"></i> Itemized Components & Part Prices</span>
+                        <span class="text-[11px] text-slate-400">Specify cost per item</span>
+                    </label>
+                    <div id="ceo-parts-editor" class="space-y-2 max-h-36 overflow-y-auto custom-scrollbar pr-1">
+                        <!-- Populated dynamically -->
+                    </div>
+                </div>
+
+                <!-- Total Summary Box -->
+                <div class="bg-purple-950/20 border border-purple-500/40 p-4 rounded-xl flex items-center justify-between">
+                    <div>
+                        <div class="text-xs font-semibold text-purple-300">Final Calculated Grand Total</div>
+                        <div class="text-[10px] text-purple-400">Base Charge + Hardware Fees + Components</div>
+                    </div>
+                    <div class="text-2xl font-extrabold text-emerald-400 font-mono" id="ceo-modal-grand-total">Rs. 0.00</div>
+                </div>
+
+                <div class="flex items-center justify-end space-x-3 pt-3 border-t border-slate-700">
+                    <button type="button" onclick="closeCEOModal()" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold rounded-xl transition">Cancel</button>
+                    <button type="submit" class="px-5 py-2 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white text-xs font-bold rounded-xl shadow-lg shadow-purple-600/30 transition flex items-center gap-1.5">
+                        <i class="fa-solid fa-check-double"></i> Confirm & Finalize Billing
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- MODAL 3: Detailed Order & Customer Receipt Popup (UPDATE 1 & 4) -->
+    <div id="detail-view-modal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-md hidden z-50 flex items-center justify-center p-4">
+        <div class="glass-panel max-w-xl w-full rounded-2xl p-6 border border-slate-700 shadow-2xl space-y-5">
+            <div class="flex items-center justify-between border-b border-slate-700 pb-3">
+                <div class="flex items-center space-x-2">
+                    <div class="p-2 bg-cyan-500/20 rounded-xl text-cyan-400 border border-cyan-500/30">
+                        <i class="fa-solid fa-receipt text-lg"></i>
+                    </div>
+                    <div>
+                        <h3 class="text-base font-bold text-white">Repair Invoice & Service Status</h3>
+                        <p class="text-xs font-mono text-cyan-400 font-semibold" id="detail-bill-id">ORD-XXXX</p>
+                    </div>
+                </div>
+                <button onclick="closeDetailModal()" class="text-slate-400 hover:text-white p-1">
+                    <i class="fa-solid fa-xmark text-xl"></i>
+                </button>
+            </div>
+
+            <!-- Detailed Content Body -->
+            <div id="detail-modal-body" class="space-y-4 text-xs">
+                <!-- Populated dynamically -->
+            </div>
+
+            <div class="flex items-center justify-between pt-3 border-t border-slate-700">
+                <button onclick="window.print()" class="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-600 rounded-xl text-xs font-semibold transition flex items-center gap-1.5">
+                    <i class="fa-solid fa-print"></i> Print Invoice Token
+                </button>
+                <button onclick="closeDetailModal()" class="px-4 py-2 bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-bold rounded-xl transition">
+                    Close
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL: Wi-Fi P2P Mesh Room Sync -->
+    <div id="sync-modal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-md hidden z-50 flex items-center justify-center p-4">
+        <div class="glass-panel max-w-md w-full rounded-2xl p-6 border border-slate-700 shadow-2xl space-y-5">
+            <div class="flex items-center justify-between border-b border-slate-700 pb-3">
+                <h3 class="text-lg font-bold text-white flex items-center gap-2">
+                    <i class="fa-solid fa-network-wired text-cyan-400"></i> Wi-Fi Laptop Direct Sync
+                </h3>
+                <button onclick="closeSyncModal()" class="text-slate-400 hover:text-white p-1">
+                    <i class="fa-solid fa-xmark text-xl"></i>
+                </button>
+            </div>
+
+            <p class="text-xs text-slate-300 leading-relaxed">
+                Connect multiple laptops on the same Wi-Fi without needing fixed IP addresses! Enter a shared <span class="text-cyan-400 font-semibold">Room Code</span> on all laptops to synchronize repair orders instantly.
+            </p>
+
+            <div id="peer-error-msg" class="hidden p-3 bg-amber-500/10 border border-amber-500/30 rounded-xl text-xs text-amber-300 space-y-1">
+                <div class="font-bold flex items-center gap-1.5"><i class="fa-solid fa-triangle-exclamation"></i> External Signaling Restricted</div>
+                <p class="text-[11px] text-amber-200/80">Local Tab Sync (BroadcastChannel) and Manual Data Payload Sync are enabled below.</p>
+            </div>
+
+            <div class="space-y-3 bg-slate-900 p-4 rounded-xl border border-slate-800">
+                <div>
+                    <label class="block text-[11px] font-semibold text-slate-400 mb-1">Your Peer ID</label>
+                    <div class="flex items-center justify-between bg-slate-950 px-3 py-2 rounded-lg border border-slate-800">
+                        <span id="my-peer-id" class="font-mono text-xs text-cyan-400 select-all">Local Sync Active</span>
+                        <i class="fa-solid fa-fingerprint text-slate-500"></i>
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-[11px] font-semibold text-slate-400 mb-1">Connect to Target Laptop Peer ID</label>
+                    <div class="flex items-center gap-2">
+                        <input type="text" id="target-peer-id" placeholder="Paste peer ID from host laptop..." class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:border-cyan-500 focus:outline-none font-mono">
+                        <button onclick="connectToPeer()" class="px-3 py-2 bg-cyan-600 hover:bg-cyan-500 text-white rounded-lg text-xs font-semibold transition">Connect</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Manual Data Transfer -->
+            <div class="space-y-2 bg-slate-900 p-4 rounded-xl border border-slate-800">
+                <label class="block text-[11px] font-semibold text-slate-300">
+                    <i class="fa-solid fa-arrow-right-arrow-left text-cyan-400 mr-1"></i> Manual Sync Payload
+                </label>
+                <div class="flex gap-2">
+                    <button onclick="copySyncPayload()" class="w-1/2 py-2 bg-slate-800 hover:bg-slate-700 text-cyan-400 border border-slate-700 rounded-lg text-xs font-semibold transition">
+                        <i class="fa-solid fa-copy mr-1"></i> Copy Payload
+                    </button>
+                    <button onclick="pasteSyncPayload()" class="w-1/2 py-2 bg-cyan-950 hover:bg-cyan-900 text-cyan-300 border border-cyan-800 rounded-lg text-xs font-semibold transition">
+                        <i class="fa-solid fa-file-import mr-1"></i> Import Payload
+                    </button>
+                </div>
+            </div>
+
+            <div class="pt-2 border-t border-slate-700 flex justify-end">
+                <button onclick="closeSyncModal()" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold rounded-xl transition">Close Panel</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const STORAGE_KEY = 'FIXMASTER_REPAIR_SHOP_ERP_DB_V2.5';
+        
+        let appState = {
+            orders: [],
+            currentRole: 'intake', // ceo | intake | tech
+            techFilter: 'ALL',
+            connectedPeers: []
+        };
+
+        // BroadcastChannel for cross-tab sync without external servers
+        const localChannel = typeof BroadcastChannel !== 'undefined' ? new BroadcastChannel('FIXMASTER_ERP_SYNC') : null;
+
+        if (localChannel) {
+            localChannel.onmessage = (event) => {
+                if (event.data && event.data.type === 'SYNC_STATE') {
+                    appState.orders = event.data.data;
+                    saveToLocalStorage();
+                    refreshActiveRoleView();
+                }
+            };
+        }
+
+        // WebRTC PeerJS instance
+        let peer = null;
+        let peerConnections = [];
+
+        window.onload = function() {
+            loadFromLocalStorage();
+            if(!appState.orders || appState.orders.length === 0) {
+                seedInitialData();
+            }
+            generateNewBillId();
+            initDefaultDeadline();
+            switchRole('intake');
+            initPeerJS();
+        };
+
+        function saveToLocalStorage() {
+            try {
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(appState.orders));
+            } catch(e) {
+                console.error('Failed to write local storage:', e);
+            }
+        }
+
+        function loadFromLocalStorage() {
+            try {
+                const data = localStorage.getItem(STORAGE_KEY);
+                if (data) {
+                    appState.orders = JSON.parse(data);
+                    // Ensure backward compatibility for outcome field
+                    appState.orders.forEach(o => {
+                        if (!o.outcome) {
+                            if (o.status === 'Unrepairable') o.outcome = 'Unrepairable';
+                            else if (o.status === 'CEO Confirmed' || o.status === 'Waiting for CEO Confirmation') o.outcome = 'Successful';
+                            else o.outcome = 'In Progress';
+                        }
+                    });
+                }
+            } catch(e) {
+                console.error('Error reading local storage:', e);
+                appState.orders = [];
+            }
+        }
+
+        function seedInitialData() {
+            const now = new Date();
+            const tomorrow = new Date(now.getTime() + (24 * 60 * 60 * 1000));
+            const yesterday = new Date(now.getTime() - (24 * 60 * 60 * 1000));
+
+            appState.orders = [
+                {
+                    id: 'ORD-1001',
+                    customer: 'Robert Chen',
+                    phone: '+1 555-8821',
+                    product: 'MacBook Pro 16" M1 - No Power',
+                    fee: 150.00,
+                    extraFee: 0.00,
+                    deadline: yesterday.toISOString().slice(0, 16),
+                    notes: 'Spilled water over trackpad area.',
+                    status: 'Waiting for CEO Confirmation',
+                    outcome: 'Successful', // Completed -> Successful Fix
+                    comments: 'Replaced power rails and cleaned board liquid damage.',
+                    parts: [{ sku: 'MOSFET-A21', qty: 2, unitPrice: 35.00 }]
+                },
+                {
+                    id: 'ORD-1002',
+                    customer: 'Sarah Jenkins',
+                    phone: '+1 555-9032',
+                    product: 'Samsung OLED TV 55" - Black Screen',
+                    fee: 140.00,
+                    extraFee: 15.00,
+                    deadline: tomorrow.toISOString().slice(0, 16),
+                    notes: 'Sound works but no backlight picture.',
+                    status: 'CEO Confirmed',
+                    outcome: 'Successful', // Completed -> Successful Fix
+                    comments: 'Testing T-Con board voltages and installed replacement T-Con module.',
+                    parts: [{ sku: 'TCON-SAM-55', qty: 1, unitPrice: 85.00 }]
+                },
+                {
+                    id: 'ORD-1003',
+                    customer: 'David Miller',
+                    phone: '+1 555-1204',
+                    product: 'PlayStation 5 - Overheating',
+                    fee: 90.00,
+                    extraFee: 0.00,
+                    deadline: new Date(now.getTime() + (48 * 60 * 60 * 1000)).toISOString().slice(0, 16),
+                    notes: 'Shuts down after 15 mins of gaming.',
+                    status: 'Pending',
+                    outcome: 'In Progress', // Pending Repair
+                    comments: 'Under diagnosis on workbench.',
+                    parts: []
+                },
+                {
+                    id: 'ORD-1004',
+                    customer: 'Elena Rostova',
+                    phone: '+1 555-3391',
+                    product: 'Asus ROG Strix - Burnt Mainboard',
+                    fee: 40.00,
+                    extraFee: 0.00,
+                    deadline: yesterday.toISOString().slice(0, 16),
+                    notes: 'Power surge after lightning strike.',
+                    status: 'Waiting for CEO Confirmation',
+                    outcome: 'Unrepairable', // Completed -> Dead / Unrepairable
+                    comments: 'Full CPU/GPU rail shorted and SoC cracked. Declared dead item.',
+                    parts: []
+                }
+            ];
+            saveToLocalStorage();
+        }
+
+        function isOrderCompleted(order) {
+            return order.status === 'Waiting for CEO Confirmation' || 
+                   order.status === 'CEO Confirmed' || 
+                   order.status === 'Completed' || 
+                   order.outcome === 'Successful' || 
+                   order.outcome === 'Unrepairable';
+        }
+
+        function switchRole(role) {
+            appState.currentRole = role;
+
+            document.querySelectorAll('.role-btn').forEach(btn => {
+                btn.classList.remove('bg-cyan-600', 'text-white', 'shadow-lg', 'shadow-cyan-600/30');
+                btn.classList.add('text-slate-400', 'hover:text-slate-200');
+            });
+
+            const activeBtn = document.getElementById(`btn-role-${role}`);
+            if(activeBtn) {
+                activeBtn.classList.remove('text-slate-400', 'hover:text-slate-200');
+                activeBtn.classList.add('bg-cyan-600', 'text-white', 'shadow-lg', 'shadow-cyan-600/30');
+            }
+
+            document.querySelectorAll('.role-view').forEach(view => view.classList.add('hidden'));
+
+            if(role === 'ceo') {
+                document.getElementById('view-ceo').classList.remove('hidden');
+                renderCEODashboard();
+            } else if(role === 'intake') {
+                document.getElementById('view-intake').classList.remove('hidden');
+                renderIntakeList();
+            } else if(role === 'tech') {
+                document.getElementById('view-tech').classList.remove('hidden');
+                renderTechDashboard();
+            }
+        }
+
+        function generateNewBillId() {
+            const randomNum = Math.floor(1000 + Math.random() * 9000);
+            document.getElementById('intake-bill').value = `ORD-${randomNum}`;
+        }
+
+        function initDefaultDeadline() {
+            const date = new Date();
+            date.setDate(date.getDate() + 2);
+            document.getElementById('intake-deadline').value = date.toISOString().slice(0, 16);
+        }
+
+        function handleCreateOrder(e) {
+            e.preventDefault();
+
+            const bill = document.getElementById('intake-bill').value;
+            const customer = document.getElementById('intake-customer').value;
+            const phone = document.getElementById('intake-phone').value;
+            const product = document.getElementById('intake-product').value;
+            const fee = parseFloat(document.getElementById('intake-fee').value) || 0;
+            const deadline = document.getElementById('intake-deadline').value;
+            const notes = document.getElementById('intake-notes').value;
+
+            const newOrder = {
+                id: bill,
+                customer,
+                phone,
+                product,
+                fee,
+                extraFee: 0,
+                deadline,
+                notes,
+                status: 'Pending',
+                outcome: 'In Progress',
+                comments: '',
+                parts: []
+            };
+
+            appState.orders.unshift(newOrder);
+            saveToLocalStorage();
+            broadcastDataChange();
+
+            document.getElementById('order-intake-form').reset();
+            generateNewBillId();
+            initDefaultDeadline();
+
+            renderIntakeList();
+        }
+
+        function renderIntakeList() {
+            const container = document.getElementById('intake-orders-list');
+            const badge = document.getElementById('intake-count-badge');
+            const searchQuery = (document.getElementById('intake-search-input')?.value || '').toLowerCase().trim();
+
+            badge.innerText = `${appState.orders.length} Total Registered`;
+
+            let filtered = appState.orders.filter(order => {
+                if (!searchQuery) return true;
+                const matchPhone = (order.phone || '').toLowerCase().includes(searchQuery);
+                const matchBill = (order.id || '').toLowerCase().includes(searchQuery);
+                const matchCustomer = (order.customer || '').toLowerCase().includes(searchQuery);
+                const matchProduct = (order.product || '').toLowerCase().includes(searchQuery);
+                return matchPhone || matchBill || matchCustomer || matchProduct;
+            });
+
+            if(filtered.length === 0) {
+                container.innerHTML = `<div class="text-center py-8 text-slate-500 text-xs">No matching repair orders found.</div>`;
+                return;
+            }
+
+            container.innerHTML = filtered.map(order => {
+                const statusBadge = getStatusBadgeHTML(order);
+                const deadlineFormatted = new Date(order.deadline).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' });
+                const totalBill = calculateOrderTotal(order);
+
+                return `
+                    <div class="p-4 bg-slate-900/90 rounded-xl border border-slate-800 hover:border-slate-700 transition flex flex-col md:flex-row md:items-center justify-between gap-3">
+                        <div class="space-y-1">
+                            <div class="flex items-center space-x-2 flex-wrap gap-y-1">
+                                <span class="font-mono text-xs font-bold text-cyan-400">${order.id}</span>
+                                ${statusBadge}
+                            </div>
+                            <div class="text-sm font-bold text-white">${order.product}</div>
+                            <div class="text-xs text-slate-400 flex flex-wrap gap-x-4 gap-y-1">
+                                <span><i class="fa-solid fa-user text-slate-500 mr-1"></i>${order.customer}</span>
+                                <span><i class="fa-solid fa-phone text-slate-500 mr-1"></i><strong class="text-slate-300">${order.phone}</strong></span>
+                                <span><i class="fa-solid fa-calendar-day text-slate-500 mr-1"></i>Due: ${deadlineFormatted}</span>
+                            </div>
+                        </div>
+                        <div class="flex items-center justify-between md:flex-col md:items-end gap-2 border-t md:border-t-0 border-slate-800 pt-2 md:pt-0">
+                            <div class="text-right">
+                                <div class="text-xs text-slate-400">Total Price</div>
+                                <div class="text-base font-extrabold text-emerald-400">Rs. ${totalBill.toFixed(2)}</div>
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <button onclick="openDetailModal('${order.id}')" class="px-3 py-1.5 bg-cyan-950 hover:bg-cyan-900 text-cyan-300 border border-cyan-800 rounded-lg text-xs font-semibold transition flex items-center gap-1">
+                                    <i class="fa-solid fa-eye"></i> View Details & Bill
+                                </button>
+                                <button onclick="deleteOrder('${order.id}')" class="text-xs text-rose-400 hover:text-rose-300 transition p-1" title="Delete">
+                                    <i class="fa-solid fa-trash-can"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function deleteOrder(id) {
+            if(confirm(`Are you sure you want to delete repair order #${id}?`)) {
+                appState.orders = appState.orders.filter(o => o.id !== id);
+                saveToLocalStorage();
+                broadcastDataChange();
+                renderIntakeList();
+            }
+        }
+
+        function calculateOrderTotal(order) {
+            const baseFee = order.fee || 0;
+            const extraFee = order.extraFee || 0;
+            let partsTotal = 0;
+            if(order.parts && Array.isArray(order.parts)) {
+                order.parts.forEach(p => {
+                    partsTotal += (p.qty || 1) * (p.unitPrice || 0);
+                });
+            }
+            return baseFee + extraFee + partsTotal;
+        }
+
+        function setTechFilter(filter) {
+            appState.techFilter = filter;
+            document.querySelectorAll('.tech-tab-btn').forEach(b => {
+                b.classList.remove('bg-cyan-600', 'text-white');
+                b.classList.add('bg-slate-800', 'text-slate-400');
+            });
+            const active = document.getElementById(`tech-tab-${filter}`);
+            if(active) {
+                active.classList.remove('bg-slate-800', 'text-slate-400');
+                active.classList.add('bg-cyan-600', 'text-white');
+            }
+            renderTechDashboard();
+        }
+
+        function renderTechDashboard() {
+            const grid = document.getElementById('tech-jobs-grid');
+            const now = new Date();
+
+            let pendingCount = 0;
+            let completedCount = 0;
+            let successfulCount = 0;
+            let deadCount = 0;
+
+            appState.orders.forEach(order => {
+                const completed = isOrderCompleted(order);
+                if (completed) {
+                    completedCount++;
+                    if (order.outcome === 'Unrepairable') deadCount++;
+                    else successfulCount++;
+                } else {
+                    pendingCount++;
+                }
+            });
+
+            document.getElementById('tech-stat-pending').innerText = pendingCount;
+            document.getElementById('tech-stat-completed').innerText = completedCount;
+            document.getElementById('tech-stat-successful').innerText = successfulCount;
+            document.getElementById('tech-stat-dead').innerText = deadCount;
+
+            let filtered = appState.orders.filter(order => {
+                const completed = isOrderCompleted(order);
+                if (appState.techFilter === 'ALL') return true;
+                if (appState.techFilter === 'PENDING') return !completed;
+                if (appState.techFilter === 'COMPLETED') return completed;
+                if (appState.techFilter === 'SUCCESSFUL') return completed && order.outcome !== 'Unrepairable';
+                if (appState.techFilter === 'UNREPAIRABLE') return completed && order.outcome === 'Unrepairable';
+                return true;
+            });
+
+            filtered.sort((a, b) => new Date(a.deadline) - new Date(b.deadline));
+
+            if(filtered.length === 0) {
+                grid.innerHTML = `<div class="col-span-full text-center py-12 text-slate-500 text-sm">No jobs found in this queue filter.</div>`;
+                return;
+            }
+
+            grid.innerHTML = filtered.map(order => {
+                const deadlineDate = new Date(order.deadline);
+                const completed = isOrderCompleted(order);
+                const isOverdue = deadlineDate < now && !completed;
+                const timeDiffHours = (deadlineDate - now) / (1000 * 60 * 60);
+                const isUrgent = timeDiffHours > 0 && timeDiffHours <= 12 && !completed;
+
+                let priorityBadge = '';
+                if(isOverdue) {
+                    priorityBadge = `<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-rose-500/20 text-rose-400 border border-rose-500/40 badge-urgent"><i class="fa-solid fa-triangle-exclamation mr-1"></i>OVERDUE</span>`;
+                } else if(isUrgent) {
+                    priorityBadge = `<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/20 text-amber-400 border border-amber-500/40"><i class="fa-solid fa-bolt mr-1"></i>URGENT</span>`;
+                } else {
+                    priorityBadge = `<span class="px-2 py-0.5 rounded text-[10px] font-semibold bg-slate-800 text-slate-400 border border-slate-700">Normal Priority</span>`;
+                }
+
+                const partsListHTML = order.parts && order.parts.length > 0 
+                    ? order.parts.map(p => `<span class="bg-slate-800 text-amber-300 text-[10px] px-2 py-0.5 rounded border border-slate-700 font-mono">${p.sku} (x${p.qty})</span>`).join(' ')
+                    : `<span class="text-slate-500 text-[11px]">No parts logged</span>`;
+
+                return `
+                    <div class="glass-panel p-5 rounded-2xl flex flex-col justify-between space-y-4 border ${isOverdue ? 'border-rose-500/50' : 'border-slate-800'} shadow-lg">
+                        <div class="space-y-3">
+                            <div class="flex items-center justify-between">
+                                <span class="font-mono text-xs font-bold text-cyan-400">${order.id}</span>
+                                ${priorityBadge}
+                            </div>
+
+                            <div>
+                                <h4 class="text-base font-bold text-white">${order.product}</h4>
+                                <p class="text-xs text-slate-400"><i class="fa-solid fa-user text-slate-500 mr-1"></i>${order.customer}</p>
+                            </div>
+
+                            <div class="bg-slate-900/80 p-3 rounded-xl border border-slate-800/80 text-xs space-y-1.5">
+                                <div class="text-slate-400"><strong class="text-slate-300">Fault:</strong> ${order.notes || 'No description provided.'}</div>
+                                <div class="text-slate-400"><strong class="text-slate-300">Target Delivery:</strong> <span class="${isOverdue ? 'text-rose-400 font-bold' : 'text-slate-200'}">${deadlineDate.toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })}</span></div>
+                            </div>
+
+                            <div class="space-y-1.5 text-xs">
+                                <div class="text-slate-400 font-semibold flex items-center gap-1">
+                                    <i class="fa-solid fa-comment-dots text-cyan-400"></i> Tech Note:
+                                </div>
+                                <div class="bg-slate-950/60 p-2 rounded-lg text-slate-300 italic text-[11px] min-h-[38px] border border-slate-800/60">
+                                    ${order.comments || 'No tech comment added yet.'}
+                                </div>
+                            </div>
+
+                            <div class="space-y-1">
+                                <div class="text-[11px] font-semibold text-slate-400">Parts Logged:</div>
+                                <div class="flex flex-wrap gap-1">
+                                    ${partsListHTML}
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="pt-3 border-t border-slate-800 flex items-center justify-between gap-2 flex-wrap">
+                            <div>${getStatusBadgeHTML(order)}</div>
+                            <button onclick="openTechModal('${order.id}')" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-cyan-400 hover:text-cyan-300 border border-slate-700 rounded-xl text-xs font-bold transition flex items-center gap-1.5">
+                                <i class="fa-solid fa-pen-to-square"></i> Update Log
+                            </button>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function toggleOutcomeFieldVisibility() {
+            const stage = document.getElementById('modal-stage').value;
+            const outcomeSelect = document.getElementById('modal-outcome');
+            
+            if (stage === 'PENDING') {
+                outcomeSelect.value = 'In Progress';
+            } else if (stage === 'COMPLETED' && outcomeSelect.value === 'In Progress') {
+                outcomeSelect.value = 'Successful';
+            }
+        }
+
+        function openTechModal(orderId) {
+            const order = appState.orders.find(o => o.id === orderId);
+            if(!order) return;
+
+            document.getElementById('modal-order-id').value = order.id;
+            document.getElementById('modal-bill-subtitle').innerText = `Updating Repair Job #${order.id} - ${order.product}`;
+            
+            const completed = isOrderCompleted(order);
+            document.getElementById('modal-stage').value = completed ? 'COMPLETED' : 'PENDING';
+            document.getElementById('modal-outcome').value = order.outcome || (completed ? 'Successful' : 'In Progress');
+            document.getElementById('modal-comment').value = order.comments || '';
+
+            const partsContainer = document.getElementById('modal-parts-container');
+            partsContainer.innerHTML = '';
+
+            if(order.parts && order.parts.length > 0) {
+                order.parts.forEach(p => addPartRow(p.sku, p.qty, p.unitPrice || 0));
+            } else {
+                addPartRow();
+            }
+
+            document.getElementById('tech-modal').classList.remove('hidden');
+        }
+
+        function closeTechModal() {
+            document.getElementById('tech-modal').classList.add('hidden');
+        }
+
+        function appendQuickComment(text) {
+            const textarea = document.getElementById('modal-comment');
+            if(textarea.value.trim().length > 0) {
+                textarea.value += " " + text;
+            } else {
+                textarea.value = text;
+            }
+        }
+
+        function addPartRow(sku = '', qty = 1, unitPrice = 0) {
+            const container = document.getElementById('modal-parts-container');
+            const rowId = 'part-row-' + Date.now() + '-' + Math.random().toString(36).substr(2, 4);
+
+            const div = document.createElement('div');
+            div.id = rowId;
+            div.className = 'flex items-center gap-2';
+            div.innerHTML = `
+                <input type="text" placeholder="Part SKU/Name" value="${sku}" class="part-sku w-1/2 bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white focus:border-cyan-500 focus:outline-none">
+                <input type="number" min="1" value="${qty}" class="part-qty w-1/5 bg-slate-900 border border-slate-700 rounded-lg px-2 py-1.5 text-xs text-white focus:border-cyan-500 focus:outline-none" title="Quantity">
+                <input type="number" min="0" step="0.01" value="${unitPrice}" class="part-price w-1/4 bg-slate-900 border border-slate-700 rounded-lg px-2 py-1.5 text-xs text-white focus:border-cyan-500 focus:outline-none" title="Unit Price (Rs.)">
+                <button type="button" onclick="document.getElementById('${rowId}').remove()" class="text-rose-400 hover:text-rose-300 p-1">
+                    <i class="fa-solid fa-xmark text-sm"></i>
+                </button>
+            `;
+            container.appendChild(div);
+        }
+
+        function handleTechUpdateSave(e) {
+            e.preventDefault();
+
+            const orderId = document.getElementById('modal-order-id').value;
+            const order = appState.orders.find(o => o.id === orderId);
+            if(!order) return;
+
+            const stage = document.getElementById('modal-stage').value;
+            const outcome = document.getElementById('modal-outcome').value;
+
+            order.outcome = outcome;
+
+            if (stage === 'PENDING') {
+                order.status = 'In Progress';
+                order.outcome = 'In Progress';
+            } else {
+                // Completed stage -> Automatically queue for CEO confirmation review
+                if (order.status !== 'CEO Confirmed') {
+                    order.status = 'Waiting for CEO Confirmation';
+                }
+            }
+
+            order.comments = document.getElementById('modal-comment').value;
+
+            const parts = [];
+            const rows = document.querySelectorAll('#modal-parts-container > div');
+            rows.forEach(row => {
+                const sku = row.querySelector('.part-sku').value.trim();
+                const qty = parseInt(row.querySelector('.part-qty').value) || 1;
+                const unitPrice = parseFloat(row.querySelector('.part-price').value) || 0;
+                if(sku) {
+                    parts.push({ sku, qty, unitPrice });
+                }
+            });
+
+            order.parts = parts;
+
+            saveToLocalStorage();
+            broadcastDataChange();
+            closeTechModal();
+
+            refreshActiveRoleView();
+        }
+
+        function renderCEODashboard() {
+            let totalIncome = 0;
+            let pendingCount = 0;
+            let completedCount = 0;
+            let successfulCount = 0;
+            let deadCount = 0;
+            let waitingCEOCount = 0;
+
+            const partsSummaryMap = {};
+
+            appState.orders.forEach(order => {
+                const completed = isOrderCompleted(order);
+
+                if (completed) {
+                    completedCount++;
+                    if (order.outcome === 'Unrepairable') {
+                        deadCount++;
+                    } else {
+                        successfulCount++;
+                    }
+                    if (order.status === 'CEO Confirmed') {
+                        totalIncome += calculateOrderTotal(order);
+                    }
+                } else {
+                    pendingCount++;
+                }
+
+                if (order.status === 'Waiting for CEO Confirmation') {
+                    waitingCEOCount++;
+                }
+
+                if(order.parts && Array.isArray(order.parts)) {
+                    order.parts.forEach(p => {
+                        if (!partsSummaryMap[p.sku]) {
+                            partsSummaryMap[p.sku] = { qty: 0, totalCost: 0 };
+                        }
+                        partsSummaryMap[p.sku].qty += (p.qty || 1);
+                        partsSummaryMap[p.sku].totalCost += (p.qty || 1) * (p.unitPrice || 0);
+                    });
+                }
+            });
+
+            document.getElementById('kpi-income').innerText = `Rs. ${totalIncome.toFixed(2)}`;
+            document.getElementById('kpi-pending-repairs').innerText = pendingCount;
+            document.getElementById('kpi-completed-repairs').innerText = completedCount;
+            document.getElementById('kpi-successful-repairs').innerText = successfulCount;
+            document.getElementById('kpi-dead-repairs').innerText = deadCount;
+            document.getElementById('kpi-waiting-ceo').innerText = waitingCEOCount;
+
+            renderCEOTable();
+            renderCEOPartsSummary(partsSummaryMap);
+        }
+
+        function renderCEOTable() {
+            const tbody = document.getElementById('ceo-table-body');
+            const search = (document.getElementById('ceo-search').value || '').toLowerCase();
+            const filterStatus = document.getElementById('ceo-filter-status').value;
+
+            let filtered = appState.orders.filter(o => {
+                const matchesSearch = o.id.toLowerCase().includes(search) || 
+                                      o.customer.toLowerCase().includes(search) || 
+                                      o.phone.toLowerCase().includes(search) || 
+                                      o.product.toLowerCase().includes(search);
+
+                const completed = isOrderCompleted(o);
+                let matchesStatus = true;
+
+                if (filterStatus === 'PENDING_GROUP') matchesStatus = !completed;
+                else if (filterStatus === 'COMPLETED_GROUP') matchesStatus = completed;
+                else if (filterStatus === 'SUCCESSFUL') matchesStatus = completed && o.outcome !== 'Unrepairable';
+                else if (filterStatus === 'UNREPAIRABLE') matchesStatus = completed && o.outcome === 'Unrepairable';
+                else if (filterStatus === 'WAITING_CEO') matchesStatus = o.status === 'Waiting for CEO Confirmation';
+                else if (filterStatus === 'CEO_CONFIRMED') matchesStatus = o.status === 'CEO Confirmed';
+
+                return matchesSearch && matchesStatus;
+            });
+
+            if(filtered.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="8" class="p-6 text-center text-slate-500">No matching repairs found.</td></tr>`;
+                return;
+            }
+
+            tbody.innerHTML = filtered.map(order => {
+                const baseFee = order.fee || 0;
+                let partsFee = 0;
+                if(order.parts) {
+                    order.parts.forEach(p => partsFee += (p.qty || 1) * (p.unitPrice || 0));
+                }
+                const grandTotal = baseFee + (order.extraFee || 0) + partsFee;
+
+                let actionButton = '';
+                if (order.status === 'Waiting for CEO Confirmation' || !isOrderCompleted(order)) {
+                    actionButton = `
+                        <button onclick="openCEOConfirmModal('${order.id}')" class="px-3 py-1 bg-purple-600 hover:bg-purple-500 text-white rounded-lg text-[11px] font-bold shadow-md shadow-purple-600/30 transition flex items-center gap-1 ml-auto">
+                            <i class="fa-solid fa-sliders"></i> Review & Confirm
+                        </button>
+                    `;
+                } else {
+                    actionButton = `
+                        <button onclick="openDetailModal('${order.id}')" class="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-cyan-400 rounded-lg text-[11px] border border-slate-700 transition ml-auto">
+                            <i class="fa-solid fa-eye"></i> View Invoice
+                        </button>
+                    `;
+                }
+
+                return `
+                    <tr class="hover:bg-slate-800/50 transition">
+                        <td class="p-3 font-mono font-bold text-cyan-400">${order.id}</td>
+                        <td class="p-3 font-medium text-slate-200">${order.customer}<br><span class="text-[10px] text-slate-400">${order.phone}</span></td>
+                        <td class="p-3 text-slate-300">${order.product}</td>
+                        <td class="p-3 text-slate-300 font-mono">Rs. ${baseFee.toFixed(2)}</td>
+                        <td class="p-3 text-amber-300 font-mono">Rs. ${partsFee.toFixed(2)}</td>
+                        <td class="p-3 font-bold text-emerald-400 font-mono">Rs. ${grandTotal.toFixed(2)}</td>
+                        <td class="p-3">${getStatusBadgeHTML(order)}</td>
+                        <td class="p-3 text-right">${actionButton}</td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        function openCEOConfirmModal(orderId) {
+            const order = appState.orders.find(o => o.id === orderId);
+            if(!order) return;
+
+            document.getElementById('ceo-modal-order-id').value = order.id;
+            document.getElementById('ceo-modal-subtitle').innerText = `Tuning Final Bill for Order #${order.id} - ${order.product}`;
+            document.getElementById('ceo-review-customer').innerText = `${order.customer} (${order.phone})`;
+            document.getElementById('ceo-review-product').innerText = order.product;
+            document.getElementById('ceo-review-notes').innerText = `[Outcome: ${order.outcome || 'In Progress'}] - ${order.comments || 'No technician notes added.'}`;
+
+            document.getElementById('ceo-base-fee').value = order.fee || 0;
+            document.getElementById('ceo-extra-fee').value = order.extraFee || 0;
+
+            const partsEditor = document.getElementById('ceo-parts-editor');
+            partsEditor.innerHTML = '';
+
+            if(order.parts && order.parts.length > 0) {
+                order.parts.forEach((p, idx) => {
+                    const div = document.createElement('div');
+                    div.className = 'flex items-center justify-between bg-slate-900 p-2.5 rounded-xl border border-slate-800 text-xs gap-2';
+                    div.innerHTML = `
+                        <div class="w-1/2 font-mono text-cyan-300 font-semibold">${p.sku} (x${p.qty})</div>
+                        <div class="flex items-center gap-1.5 w-1/2">
+                            <span class="text-slate-400 text-[11px]">Unit Rs:</span>
+                            <input type="number" step="0.01" min="0" value="${p.unitPrice || 0}" data-idx="${idx}" class="ceo-part-price-input w-full bg-slate-950 border border-slate-700 rounded-lg px-2 py-1 text-xs text-white focus:border-purple-500 focus:outline-none" oninput="calculateCEOGrandTotal()">
+                        </div>
+                    `;
+                    partsEditor.appendChild(div);
+                });
+            } else {
+                partsEditor.innerHTML = `<div class="text-slate-500 text-xs italic py-1">No additional spare parts logged by technician.</div>`;
+            }
+
+            calculateCEOGrandTotal();
+            document.getElementById('ceo-confirm-modal').classList.remove('hidden');
+        }
+
+        function closeCEOModal() {
+            document.getElementById('ceo-confirm-modal').classList.add('hidden');
+        }
+
+        function calculateCEOGrandTotal() {
+            const baseFee = parseFloat(document.getElementById('ceo-base-fee').value) || 0;
+            const extraFee = parseFloat(document.getElementById('ceo-extra-fee').value) || 0;
+
+            let partsTotal = 0;
+            const priceInputs = document.querySelectorAll('.ceo-part-price-input');
+            const orderId = document.getElementById('ceo-modal-order-id').value;
+            const order = appState.orders.find(o => o.id === orderId);
+
+            if(order && order.parts) {
+                priceInputs.forEach(input => {
+                    const idx = parseInt(input.getAttribute('data-idx'));
+                    const unitPrice = parseFloat(input.value) || 0;
+                    if(order.parts[idx]) {
+                        partsTotal += (order.parts[idx].qty || 1) * unitPrice;
+                    }
+                });
+            }
+
+            const grandTotal = baseFee + extraFee + partsTotal;
+            document.getElementById('ceo-modal-grand-total').innerText = `Rs. ${grandTotal.toFixed(2)}`;
+        }
+
+        function handleCEOBillingConfirm(e) {
+            e.preventDefault();
+
+            const orderId = document.getElementById('ceo-modal-order-id').value;
+            const order = appState.orders.find(o => o.id === orderId);
+            if(!order) return;
+
+            order.fee = parseFloat(document.getElementById('ceo-base-fee').value) || 0;
+            order.extraFee = parseFloat(document.getElementById('ceo-extra-fee').value) || 0;
+
+            const priceInputs = document.querySelectorAll('.ceo-part-price-input');
+            if(order.parts) {
+                priceInputs.forEach(input => {
+                    const idx = parseInt(input.getAttribute('data-idx'));
+                    const unitPrice = parseFloat(input.value) || 0;
+                    if(order.parts[idx]) {
+                        order.parts[idx].unitPrice = unitPrice;
+                    }
+                });
+            }
+
+            // Update status to CEO Confirmed!
+            order.status = 'CEO Confirmed';
+
+            saveToLocalStorage();
+            broadcastDataChange();
+            closeCEOModal();
+
+            refreshActiveRoleView();
+        }
+
+        function openDetailModal(orderId) {
+            const order = appState.orders.find(o => o.id === orderId);
+            if(!order) return;
+
+            document.getElementById('detail-bill-id').innerText = `${order.id}`;
+
+            const baseFee = order.fee || 0;
+            const extraFee = order.extraFee || 0;
+            let partsTotal = 0;
+
+            let partsTableHTML = '';
+            if(order.parts && order.parts.length > 0) {
+                partsTableHTML = `
+                    <div class="space-y-1.5 mt-2">
+                        <div class="font-semibold text-slate-300 text-xs">Components & Spare Parts Used:</div>
+                        <table class="w-full text-left bg-slate-950 rounded-xl overflow-hidden border border-slate-800">
+                            <thead class="bg-slate-900 text-slate-400 text-[11px] font-semibold">
+                                <tr>
+                                    <th class="p-2">Component</th>
+                                    <th class="p-2">Qty</th>
+                                    <th class="p-2">Unit Price</th>
+                                    <th class="p-2 text-right">Subtotal</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-slate-800 text-[11px] text-slate-300">
+                                ${order.parts.map(p => {
+                                    const sub = (p.qty || 1) * (p.unitPrice || 0);
+                                    partsTotal += sub;
+                                    return `
+                                        <tr>
+                                            <td class="p-2 font-mono text-cyan-300">${p.sku}</td>
+                                            <td class="p-2">${p.qty}</td>
+                                            <td class="p-2">Rs. ${(p.unitPrice || 0).toFixed(2)}</td>
+                                            <td class="p-2 text-right font-semibold text-amber-300">Rs. ${sub.toFixed(2)}</td>
+                                        </tr>
+                                    `;
+                                }).join('')}
+                            </tbody>
+                        </table>
+                    </div>
+                `;
+            } else {
+                partsTableHTML = `<div class="text-slate-500 italic text-[11px] mt-1">No hardware components replaced.</div>`;
+            }
+
+            const grandTotal = baseFee + extraFee + partsTotal;
+
+            const modalBody = document.getElementById('detail-modal-body');
+            modalBody.innerHTML = `
+                <div class="bg-slate-900/90 p-4 rounded-xl border border-slate-800 space-y-2">
+                    <div class="flex items-center justify-between border-b border-slate-800 pb-2">
+                        <span class="text-slate-400">Current Status:</span>
+                        <span>${getStatusBadgeHTML(order)}</span>
+                    </div>
+                    <div class="grid grid-cols-2 gap-2 text-xs pt-1">
+                        <div><span class="text-slate-400">Customer Name:</span> <br><strong class="text-white">${order.customer}</strong></div>
+                        <div><span class="text-slate-400">Phone Number:</span> <br><strong class="text-cyan-400 font-mono">${order.phone}</strong></div>
+                        <div class="col-span-2"><span class="text-slate-400">Product Model:</span> <br><strong class="text-white">${order.product}</strong></div>
+                    </div>
+                </div>
+
+                <div class="bg-slate-900/90 p-4 rounded-xl border border-slate-800 space-y-2">
+                    <div class="text-slate-400 font-semibold flex items-center gap-1.5 text-xs">
+                        <i class="fa-solid fa-screwdriver-wrench text-amber-400"></i> Technician Work Summary:
+                    </div>
+                    <p class="p-2.5 bg-slate-950 rounded-lg text-slate-300 italic text-[11px] border border-slate-800">
+                        ${order.comments || 'Repair in progress / awaiting technician notes.'}
+                    </p>
+                    ${partsTableHTML}
+                </div>
+
+                <!-- Financial Calculation Breakdown -->
+                <div class="bg-slate-900/90 p-4 rounded-xl border border-slate-800 space-y-1.5 text-xs">
+                    <div class="flex justify-between text-slate-300">
+                        <span>Base Service Fee:</span>
+                        <span class="font-mono">Rs. ${baseFee.toFixed(2)}</span>
+                    </div>
+                    ${extraFee > 0 ? `
+                        <div class="flex justify-between text-slate-300">
+                            <span>Hardware / Handling Charge:</span>
+                            <span class="font-mono">Rs. ${extraFee.toFixed(2)}</span>
+                        </div>
+                    ` : ''}
+                    <div class="flex justify-between text-amber-300">
+                        <span>Total Spare Parts Charge:</span>
+                        <span class="font-mono">Rs. ${partsTotal.toFixed(2)}</span>
+                    </div>
+                    <div class="flex justify-between text-sm font-extrabold text-emerald-400 border-t border-slate-700 pt-2 mt-1">
+                        <span>GRAND TOTAL BILL:</span>
+                        <span class="font-mono text-base">Rs. ${grandTotal.toFixed(2)}</span>
+                    </div>
+                </div>
+            `;
+
+            document.getElementById('detail-view-modal').classList.remove('hidden');
+        }
+
+        function closeDetailModal() {
+            document.getElementById('detail-view-modal').classList.add('hidden');
+        }
+
+        function renderCEOPartsSummary(partsMap) {
+            const container = document.getElementById('ceo-parts-summary');
+            const keys = Object.keys(partsMap);
+
+            if(keys.length === 0) {
+                container.innerHTML = `<div class="text-center py-6 text-slate-500 text-xs">No spare parts recorded yet.</div>`;
+                return;
+            }
+
+            container.innerHTML = keys.map(sku => {
+                const item = partsMap[sku];
+                return `
+                    <div class="flex items-center justify-between p-2.5 bg-slate-900 rounded-xl border border-slate-800 text-xs">
+                        <div class="flex items-center space-x-2">
+                            <i class="fa-solid fa-microchip text-amber-400"></i>
+                            <div>
+                                <div class="font-mono text-slate-200 font-semibold">${sku}</div>
+                                <div class="text-[10px] text-slate-400">Value: Rs. ${item.totalCost.toFixed(2)}</div>
+                            </div>
+                        </div>
+                        <span class="px-2.5 py-0.5 bg-amber-500/10 text-amber-400 border border-amber-500/20 rounded-full font-bold text-xs">${item.qty} used</span>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function getStatusBadgeHTML(order) {
+            const completed = isOrderCompleted(order);
+            const isUnrepairable = order.outcome === 'Unrepairable';
+
+            if (!completed) {
+                if (order.status === 'In Progress') {
+                    return `<span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-500/20 text-blue-400 border border-blue-500/30"><i class="fa-solid fa-gear fa-spin mr-1"></i>1. Pending: In Progress</span>`;
+                }
+                return `<span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/20 text-amber-400 border border-amber-500/30"><i class="fa-solid fa-clock mr-1"></i>1. Pending: In Queue</span>`;
+            }
+
+            // Order is Completed
+            let subBadge = '';
+            if (isUnrepairable) {
+                subBadge = `<span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-500/20 text-rose-400 border border-rose-500/30"><i class="fa-solid fa-skull mr-1"></i>Completed: Dead / Scrap</span>`;
+            } else {
+                subBadge = `<span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30"><i class="fa-solid fa-wand-magic-sparkles mr-1"></i>Completed: Successful Fix</span>`;
+            }
+
+            let billingBadge = '';
+            if (order.status === 'CEO Confirmed') {
+                billingBadge = `<span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-cyan-500/20 text-cyan-300 border border-cyan-500/30"><i class="fa-solid fa-check-double mr-1"></i>CEO Confirmed</span>`;
+            } else if (order.status === 'Waiting for CEO Confirmation') {
+                billingBadge = `<span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-purple-500/20 text-purple-300 border border-purple-500/30 badge-urgent"><i class="fa-solid fa-user-clock mr-1"></i>Waiting CEO Review</span>`;
+            }
+
+            return `<div class="flex items-center gap-1.5 flex-wrap">${subBadge}${billingBadge}</div>`;
+        }
+
+        function initPeerJS() {
+            try {
+                peer = new Peer(null, { debug: 0 });
+
+                peer.on('open', (id) => {
+                    document.getElementById('my-peer-id').innerText = id;
+                    updateNetworkBadge(true, "Peer Node Ready");
+                });
+
+                peer.on('connection', (conn) => {
+                    setupConnectionListeners(conn);
+                });
+
+                peer.on('error', (err) => {
+                    console.warn('PeerJS Network info:', err);
+                    updateNetworkBadge(false, "Local Sync Mode");
+                    const errBox = document.getElementById('peer-error-msg');
+                    if (errBox) errBox.classList.remove('hidden');
+                });
+            } catch (err) {
+                console.warn('PeerJS Initialization prevented:', err);
+                updateNetworkBadge(false, "Local Sync Mode");
+                const errBox = document.getElementById('peer-error-msg');
+                if (errBox) errBox.classList.remove('hidden');
+            }
+        }
+
+        function connectToPeer() {
+            if(!peer) {
+                alert('P2P signaling server is blocked in preview. Please use Local Tab Sync or Manual Sync Payload.');
+                return;
+            }
+            const targetId = document.getElementById('target-peer-id').value.trim();
+            if(!targetId) {
+                alert('Please enter a target Peer ID!');
+                return;
+            }
+
+            try {
+                const conn = peer.connect(targetId);
+                setupConnectionListeners(conn);
+            } catch(e) {
+                alert('Connection attempt failed: ' + e.message);
+            }
+        }
+
+        function setupConnectionListeners(conn) {
+            conn.on('open', () => {
+                peerConnections.push(conn);
+                updateNetworkBadge(true, `Synced (${peerConnections.length} Peer)`);
+                closeSyncModal();
+                conn.send({ type: 'SYNC_STATE', data: appState.orders });
+            });
+
+            conn.on('data', (msg) => {
+                if(msg && msg.type === 'SYNC_STATE') {
+                    appState.orders = msg.data;
+                    saveToLocalStorage();
+                    refreshActiveRoleView();
+                }
+            });
+
+            conn.on('close', () => {
+                peerConnections = peerConnections.filter(c => c !== conn);
+                updateNetworkBadge(peerConnections.length > 0, peerConnections.length > 0 ? `Synced (${peerConnections.length})` : "Peer Node Ready");
+            });
+        }
+
+        function broadcastDataChange() {
+            if (localChannel) {
+                localChannel.postMessage({ type: 'SYNC_STATE', data: appState.orders });
+            }
+
+            peerConnections.forEach(conn => {
+                if(conn.open) {
+                    conn.send({ type: 'SYNC_STATE', data: appState.orders });
+                }
+            });
+        }
+
+        function copySyncPayload() {
+            const payload = btoa(encodeURIComponent(JSON.stringify(appState.orders)));
+            const tempInput = document.createElement('textarea');
+            tempInput.value = payload;
+            document.body.appendChild(tempInput);
+            tempInput.select();
+            document.execCommand('copy');
+            document.body.removeChild(tempInput);
+            alert('ERP Sync payload copied to clipboard!');
+        }
+
+        function pasteSyncPayload() {
+            const payload = prompt('Paste the sync payload string:');
+            if (payload) {
+                try {
+                    const jsonString = decodeURIComponent(atob(payload.trim()));
+                    const parsed = JSON.parse(jsonString);
+                    if (Array.isArray(parsed)) {
+                        appState.orders = parsed;
+                        saveToLocalStorage();
+                        broadcastDataChange();
+                        refreshActiveRoleView();
+                        alert('Database imported and synchronized successfully!');
+                        closeSyncModal();
+                    } else {
+                        alert('Invalid payload structure.');
+                    }
+                } catch(e) {
+                    alert('Failed to parse payload string.');
+                }
+            }
+        }
+
+        function updateNetworkBadge(active, text) {
+            const dot = document.getElementById('network-status-dot');
+            const label = document.getElementById('network-status-text');
+
+            label.innerText = text;
+            if(active) {
+                dot.className = "w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse";
+            } else {
+                dot.className = "w-2.5 h-2.5 rounded-full bg-amber-500";
+            }
+        }
+
+        function openSyncModal() {
+            document.getElementById('sync-modal').classList.remove('hidden');
+        }
+
+        function closeSyncModal() {
+            document.getElementById('sync-modal').classList.add('hidden');
+        }
+
+        function refreshActiveRoleView() {
+            if(appState.currentRole === 'ceo') renderCEODashboard();
+            if(appState.currentRole === 'intake') renderIntakeList();
+            if(appState.currentRole === 'tech') renderTechDashboard();
+        }
+
+        function exportDataJSON() {
+            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(appState.orders, null, 2));
+            const dlAnchor = document.createElement('a');
+            dlAnchor.setAttribute("href", dataStr);
+            dlAnchor.setAttribute("download", `RepairShop_Backup_${new Date().toISOString().slice(0,10)}.json`);
+            document.body.appendChild(dlAnchor);
+            dlAnchor.click();
+            dlAnchor.remove();
+        }
+
+        function clearAllDataPrompt() {
+            if(confirm("Warning: This will clear all repair database entries on this laptop. Continue?")) {
+                appState.orders = [];
+                saveToLocalStorage();
+                broadcastDataChange();
+                refreshActiveRoleView();
+            }
+        }
+    </script>
+</body>
+</html>

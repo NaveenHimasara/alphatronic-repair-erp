@@ -1,0 +1,32 @@
+{
+  "name": "alphatronic-repair-erp",
+  "version": "3.0.0",
+  "description": "Alphatronic repair shop ERP - LAN server with SQLite database and live sync between laptops",
+  "main": "server.js",
+  "private": true,
+  "license": "Apache-2.0",
+  "author": "Alphatronic",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/nhimasara2001-ai/alphatronic-repair-erp.git"
+  },
+  "bugs": {
+    "url": "https://github.com/nhimasara2001-ai/alphatronic-repair-erp/issues"
+  },
+  "homepage": "https://github.com/nhimasara2001-ai/alphatronic-repair-erp#readme",
+  "keywords": [
+    "erp",
+    "repair-shop",
+    "sqlite",
+    "websocket",
+    "lan",
+    "offline-first",
+    "nodejs"
+  ],
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=22.13"
+  }
+}

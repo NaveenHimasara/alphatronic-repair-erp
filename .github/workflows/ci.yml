@@ -1,0 +1,76 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Smoke test (Node ${{ matrix.node }}, ${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        node: ['22', '24']
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+
+      - name: Syntax check
+        run: node --check server.js
+
+      - name: Start server and test the API
+        shell: bash
+        env:
+          ERP_DATA_DIR: ${{ runner.temp }}/erp-data
+          PORT: '8090'
+        run: |
+          node server.js > server.log 2>&1 &
+          for i in $(seq 1 30); do
+            curl -sf http://localhost:8090/api/status > /dev/null && break
+            sleep 1
+          done
+          set -x
+          curl -sf http://localhost:8090/api/status | grep -q '"role":"ceo"'
+          curl -sf http://localhost:8090/ | grep -qi '<html'
+          TOKEN=$(curl -sf -X POST http://localhost:8090/api/login \
+            -H 'Content-Type: application/json' \
+            -d '{"role":"ceo","pin":"482913","device":"CI"}' | sed -E 's/.*"token":"([0-9a-f]+)".*/\1/')
+          test ${#TOKEN} -eq 64
+          curl -sf -H "Authorization: Bearer $TOKEN" http://localhost:8090/api/session | grep -q '"role":"ceo"'
+          code=$(curl -s -o /dev/null -w '%{http_code}' -X POST http://localhost:8090/api/login \
+            -H 'Content-Type: application/json' -d '{"role":"ceo","pin":"000000","device":"CI"}')
+          test "$code" = "401"
+          code=$(curl -s -o /dev/null -w '%{http_code}' http://localhost:8090/api/export.json)
+          test "$code" = "403"
+
+      - name: Server log
+        if: always()
+        shell: bash
+        run: cat server.log || true
+
+  secrets-scan:
+    name: Secret & data leak scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Block database files
+        run: |
+          if git ls-files | grep -Ei '\.(db|sqlite3?|db-wal|db-shm)$'; then
+            echo "::error::Database files must never be committed (they contain customer data)."
+            exit 1
+          fi
+      - uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -1,0 +1,31 @@
+# ---------------------------------------------------------------
+# Live data - NEVER commit. Contains customer records, PIN hashes
+# and login sessions.
+# ---------------------------------------------------------------
+database/
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite3
+Alphatronic_ERP_Backup_*.db
+Alphatronic_ERP_Export_*.json
+
+# Secrets / local configuration
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Node
+node_modules/
+npm-debug.log*
+
+# OS / editor
+Thumbs.db
+desktop.ini
+.DS_Store
+.vscode/
+.idea/
+*.log

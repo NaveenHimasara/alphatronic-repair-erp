@@ -1,0 +1,1433 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Alphatronic Repair ERP</title>
+
+    <!-- Served locally by server.js so the ERP works on Wi-Fi without internet -->
+    <script src="/vendor/tailwind.js"></script>
+    <link rel="stylesheet" href="/vendor/fontawesome/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: { extend: { fontFamily: { sans: ['Inter', 'Segoe UI', 'sans-serif'] } } }
+        }
+    </script>
+
+    <style>
+        body { background-color: #0b0f19; color: #f1f5f9; font-family: 'Inter', 'Segoe UI', sans-serif; }
+        .custom-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: #1e293b; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #475569; border-radius: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #64748b; }
+        .glass-panel { background: rgba(30, 41, 59, 0.85); backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.08); }
+        .badge-urgent { animation: pulse-red 2s infinite; }
+        @keyframes pulse-red { 0%, 100% { opacity: 1; } 50% { opacity: 0.6; } }
+        .role-card:hover { transform: translateY(-2px); }
+        .toast { animation: toast-in .25s ease-out; }
+        @keyframes toast-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+
+        /* Print only the invoice, in black on white */
+        #print-header { display: none; }
+        @media print {
+            body * { visibility: hidden; }
+            #print-area, #print-area * { visibility: visible; }
+            #print-area { position: absolute; left: 0; top: 0; width: 100%; padding: 16px; }
+            #print-header { display: block; }
+            #print-area * { color: #000 !important; background: transparent !important; border-color: #999 !important; box-shadow: none !important; }
+            .no-print { display: none !important; }
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col custom-scrollbar">
+
+    <!-- ============================================================ -->
+    <!-- LOGIN SCREEN                                                  -->
+    <!-- ============================================================ -->
+    <div id="login-screen" class="hidden min-h-screen flex items-center justify-center p-4">
+        <div class="w-full max-w-3xl space-y-6">
+            <div class="text-center space-y-2">
+                <div class="inline-flex bg-gradient-to-tr from-cyan-500 to-blue-600 p-4 rounded-2xl shadow-lg shadow-cyan-500/20">
+                    <i class="fa-solid fa-wrench text-3xl text-white"></i>
+                </div>
+                <h1 class="text-2xl font-bold tracking-wider text-white">ALPHATRONIC <span class="text-cyan-400">REPAIR ERP</span></h1>
+                <p class="text-sm text-slate-400" id="login-subtitle">Who are you? Select your role to continue.</p>
+            </div>
+
+            <!-- Step 1: choose role -->
+            <div id="login-step-role" class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <!-- filled by renderRoleCards() -->
+            </div>
+
+            <!-- Step 2: PIN -->
+            <form id="login-step-pin" class="hidden glass-panel max-w-sm mx-auto rounded-2xl p-6 space-y-4" onsubmit="submitLogin(event)">
+                <div class="flex items-center gap-3 border-b border-slate-700 pb-3">
+                    <button type="button" onclick="showRoleStep()" class="text-slate-400 hover:text-white p-1" title="Back"><i class="fa-solid fa-arrow-left"></i></button>
+                    <div>
+                        <div class="text-xs text-slate-400">Logging in as</div>
+                        <div class="text-base font-bold text-white" id="login-role-name"></div>
+                    </div>
+                </div>
+                <div id="login-first-time-note" class="hidden p-3 bg-cyan-500/10 border border-cyan-500/30 rounded-xl text-xs text-cyan-200">
+                    <i class="fa-solid fa-circle-info mr-1"></i> First time for this role. <strong>Create a PIN</strong> (4&ndash;8 digits). Everyone using this role will need it.
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-300 mb-1" id="login-pin-label">PIN</label>
+                    <input type="password" inputmode="numeric" pattern="\d{4,8}" maxlength="8" id="login-pin" required autocomplete="off"
+                        class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2.5 text-lg tracking-[0.5em] text-center text-white font-mono focus:border-cyan-500 focus:outline-none">
+                </div>
+                <div id="login-pin2-wrap" class="hidden">
+                    <label class="block text-xs font-semibold text-slate-300 mb-1">Type the PIN again</label>
+                    <input type="password" inputmode="numeric" maxlength="8" id="login-pin2" autocomplete="off"
+                        class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2.5 text-lg tracking-[0.5em] text-center text-white font-mono focus:border-cyan-500 focus:outline-none">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-300 mb-1">This laptop's name</label>
+                    <input type="text" id="login-device" maxlength="60" placeholder="e.g. Front Desk Laptop"
+                        class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:border-cyan-500 focus:outline-none">
+                </div>
+                <div id="login-error" class="hidden text-xs text-rose-300 bg-rose-500/10 border border-rose-500/30 rounded-lg p-2"></div>
+                <button type="submit" id="login-submit" class="w-full py-3 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white font-bold text-sm rounded-xl shadow-lg shadow-cyan-500/20 transition">
+                    <i class="fa-solid fa-right-to-bracket mr-1"></i> Log In
+                </button>
+            </form>
+
+            <div id="login-server-error" class="hidden max-w-lg mx-auto p-4 bg-amber-500/10 border border-amber-500/30 rounded-xl text-sm text-amber-200 space-y-2"></div>
+
+            <p class="text-center text-[11px] text-slate-500" id="login-footer"></p>
+        </div>
+    </div>
+
+    <!-- ============================================================ -->
+    <!-- MAIN APP                                                      -->
+    <!-- ============================================================ -->
+    <div id="app" class="hidden min-h-screen flex flex-col">
+    <header class="glass-panel sticky top-0 z-40 border-b border-slate-800 px-4 py-3">
+        <div class="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4">
+            <div class="flex items-center space-x-3">
+                <div class="bg-gradient-to-tr from-cyan-500 to-blue-600 p-2.5 rounded-xl shadow-lg shadow-cyan-500/20">
+                    <i class="fa-solid fa-wrench text-xl text-white"></i>
+                </div>
+                <div>
+                    <h1 class="text-xl font-bold tracking-wider text-white flex items-center gap-2">
+                        ALPHATRONIC <span class="text-xs px-2 py-0.5 rounded bg-cyan-500/20 text-cyan-400 border border-cyan-500/30 font-semibold">ERP v3.0</span>
+                    </h1>
+                    <p class="text-xs text-slate-400">Repair Shop Management System</p>
+                </div>
+            </div>
+
+            <div class="flex items-center gap-2 bg-slate-900/80 px-4 py-2 rounded-xl border border-slate-700/60 text-xs">
+                <i id="header-role-icon" class="fa-solid fa-user text-cyan-400"></i>
+                <span class="text-slate-400">Logged in as</span>
+                <span id="header-role-name" class="font-bold text-white"></span>
+            </div>
+
+            <div class="flex items-center gap-2 text-xs">
+                <div class="flex items-center space-x-2 bg-slate-900 px-3 py-2 rounded-xl border border-slate-700" title="Live connection to the main laptop">
+                    <span id="network-status-dot" class="w-2.5 h-2.5 rounded-full bg-amber-500 animate-pulse"></span>
+                    <span id="network-status-text" class="text-slate-300 font-mono text-xs">Connecting...</span>
+                </div>
+                <button onclick="openPinModal()" class="px-3 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-600 rounded-xl text-slate-300 transition" title="Change my PIN">
+                    <i class="fa-solid fa-key"></i>
+                </button>
+                <button onclick="logout()" class="px-3 py-2 bg-slate-800 hover:bg-rose-900/60 border border-slate-600 rounded-xl text-slate-300 hover:text-rose-200 transition flex items-center gap-1.5">
+                    <i class="fa-solid fa-right-from-bracket"></i> <span>Log out</span>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <div id="offline-banner" class="hidden bg-amber-500/15 border-b border-amber-500/30 text-amber-200 text-xs text-center py-2 px-4">
+        <i class="fa-solid fa-plug-circle-exclamation mr-1"></i>
+        Lost connection to the main laptop. Reconnecting automatically&hellip; Changes cannot be saved until it is back.
+    </div>
+
+    <main class="flex-1 max-w-7xl w-full mx-auto p-4 md:p-6 space-y-6">
+
+        <!-- 1. CEO VIEW -->
+        <section id="view-ceo" class="role-view space-y-6 hidden">
+            <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-slate-800/40 p-5 rounded-2xl border border-slate-700/50">
+                <div>
+                    <h2 class="text-2xl font-bold text-white flex items-center gap-2">
+                        <i class="fa-solid fa-chart-line text-cyan-400"></i> Executive Overview Dashboard
+                    </h2>
+                    <p class="text-xs text-slate-400 mt-1">All repairs, total service income, and parts usage. Updates live from every laptop.</p>
+                </div>
+                <div class="flex items-center gap-2 flex-wrap">
+                    <button onclick="openActivityModal()" class="px-3 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-600 rounded-xl text-xs font-semibold text-slate-200 transition flex items-center gap-2">
+                        <i class="fa-solid fa-clock-rotate-left"></i> Activity Log
+                    </button>
+                    <a href="#" onclick="downloadBackup(event)" class="px-3 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-600 rounded-xl text-xs font-semibold text-slate-200 transition flex items-center gap-2">
+                        <i class="fa-solid fa-database"></i> Download Backup
+                    </a>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3">
+                <div class="glass-panel p-4 rounded-2xl border-l-4 border-emerald-500">
+                    <div class="flex items-center justify-between text-slate-400 text-xs font-semibold">
+                        <span>TOTAL INCOME</span><i class="fa-solid fa-sack-dollar text-emerald-400 text-base"></i>
+                    </div>
+                    <div class="text-xl font-extrabold text-white mt-1" id="kpi-income">Rs. 0.00</div>
+                    <p class="text-[10px] text-emerald-400 mt-0.5" id="kpi-income-month">This month: Rs. 0.00</p>
+                </div>
+                <div class="glass-panel p-4 rounded-2xl border-l-4 border-amber-500 bg-amber-950/10">
+                    <div class="flex items-center justify-between text-slate-400 text-xs font-semibold">
+                        <span>PENDING REPAIRS</span><i class="fa-solid fa-clock text-amber-400 text-base"></i>
+                    </div>
+                    <div class="text-xl font-extrabold text-amber-300 mt-1" id="kpi-pending-repairs">0</div>
+                    <p class="text-[10px] text-amber-400 mt-0.5">In queue &amp; in progress</p>
+                </div>
+                <div class="glass-panel p-4 rounded-2xl border-l-4 border-blue-500 bg-blue-950/10">
+                    <div class="flex items-center justify-between text-slate-400 text-xs font-semibold">
+                        <span>COMPLETED</span><i class="fa-solid fa-circle-check text-blue-400 text-base"></i>
+                    </div>
+                    <div class="text-xl font-extrabold text-blue-300 mt-1" id="kpi-completed-repairs">0</div>
+                    <p class="text-[10px] text-blue-400 mt-0.5">Finished jobs</p>
+                </div>
+                <div class="glass-panel p-4 rounded-2xl border-l-4 border-emerald-400">
+                    <div class="flex items-center justify-between text-slate-400 text-xs font-semibold">
+                        <span>└ SUCCESSFUL</span><i class="fa-solid fa-wand-magic-sparkles text-emerald-400 text-base"></i>
+                    </div>
+                    <div class="text-xl font-extrabold text-white mt-1" id="kpi-successful-repairs">0</div>
+                    <p class="text-[10px] text-emerald-400 mt-0.5">Working after repair</p>
+                </div>
+                <div class="glass-panel p-4 rounded-2xl border-l-4 border-rose-500">
+                    <div class="flex items-center justify-between text-slate-400 text-xs font-semibold">
+                        <span>└ DEAD</span><i class="fa-solid fa-skull text-rose-400 text-base"></i>
+                    </div>
+                    <div class="text-xl font-extrabold text-white mt-1" id="kpi-dead-repairs">0</div>
+                    <p class="text-[10px] text-rose-400 mt-0.5">Unrepairable</p>
+                </div>
+                <div class="glass-panel p-4 rounded-2xl border-l-4 border-purple-500 bg-purple-950/10">
+                    <div class="flex items-center justify-between text-slate-400 text-xs font-semibold">
+                        <span>WAITING MANAGER BILL</span><i class="fa-solid fa-user-clock text-purple-400 text-base"></i>
+                    </div>
+                    <div class="text-xl font-extrabold text-purple-300 mt-1" id="kpi-waiting-ceo">0</div>
+                    <p class="text-[10px] text-purple-400 mt-0.5">Needs your confirmation</p>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <div class="lg:col-span-3 glass-panel p-5 rounded-2xl space-y-4">
+                    <div class="flex flex-col sm:flex-row items-center justify-between gap-3 pb-3 border-b border-slate-700/60">
+                        <h3 class="font-bold text-slate-200 text-base flex items-center gap-2">
+                            <i class="fa-solid fa-list-check text-cyan-400"></i> All Repairs &amp; Billing
+                        </h3>
+                        <div class="flex items-center gap-2 w-full sm:w-auto">
+                            <div class="relative w-full sm:w-48">
+                                <i class="fa-solid fa-search absolute left-3 top-2.5 text-slate-400 text-xs"></i>
+                                <input type="text" id="ceo-search" oninput="renderCEOTable()" placeholder="Search customer, bill, phone..." class="w-full bg-slate-900 border border-slate-700 text-xs text-white rounded-lg pl-8 pr-3 py-1.5 focus:border-cyan-500 focus:outline-none">
+                            </div>
+                            <select id="ceo-filter-status" onchange="renderCEOTable()" class="bg-slate-900 border border-slate-700 text-xs text-slate-300 rounded-lg px-2 py-1.5 focus:border-cyan-500 focus:outline-none">
+                                <option value="ALL">All Repairs</option>
+                                <option value="PENDING_GROUP">Pending Repairs</option>
+                                <option value="COMPLETED_GROUP">Completed Repairs</option>
+                                <option value="SUCCESSFUL">└ Successful</option>
+                                <option value="UNREPAIRABLE">└ Dead / Unrepairable</option>
+                                <option value="WAITING_CEO">Waiting Manager Billing</option>
+                                <option value="CEO_CONFIRMED">Manager Confirmed (Income)</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="overflow-x-auto custom-scrollbar max-h-[560px] overflow-y-auto">
+                        <table class="w-full text-left text-xs text-slate-300">
+                            <thead class="bg-slate-900/80 text-slate-400 uppercase font-semibold border-b border-slate-700 sticky top-0">
+                                <tr>
+                                    <th class="p-3">Bill #</th>
+                                    <th class="p-3">Customer / Phone</th>
+                                    <th class="p-3">Product</th>
+                                    <th class="p-3">Service</th>
+                                    <th class="p-3">Parts</th>
+                                    <th class="p-3">Total</th>
+                                    <th class="p-3">Status</th>
+                                    <th class="p-3 text-right">Action</th>
+                                </tr>
+                            </thead>
+                            <tbody id="ceo-table-body" class="divide-y divide-slate-800"></tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div class="lg:col-span-3 grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
+                    <!-- Network & access -->
+                    <div class="glass-panel p-5 rounded-2xl space-y-4">
+                        <h3 class="font-bold text-slate-200 text-base flex items-center gap-2 pb-3 border-b border-slate-700/60">
+                            <i class="fa-solid fa-network-wired text-cyan-400"></i> Laptops &amp; Access
+                        </h3>
+                        <div class="text-xs space-y-1">
+                            <div class="text-slate-400">Other laptops open this link:</div>
+                            <div class="flex items-center gap-2">
+                                <code id="ceo-share-url" class="flex-1 bg-slate-950 px-2.5 py-1.5 rounded-lg border border-slate-800 text-cyan-300 font-mono select-all break-all"></code>
+                                <button onclick="copyShareUrl()" class="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-lg text-slate-300" title="Copy"><i class="fa-solid fa-copy"></i></button>
+                            </div>
+                            <div class="text-[10px] text-slate-500" id="ceo-share-ip"></div>
+                        </div>
+                        <div class="space-y-1.5">
+                            <div class="text-xs font-semibold text-slate-300">Online now</div>
+                            <div id="ceo-presence" class="space-y-1.5"></div>
+                        </div>
+                        <div class="space-y-1.5 border-t border-slate-700/60 pt-3">
+                            <div class="text-xs font-semibold text-slate-300">Reset a PIN (forgotten PIN)</div>
+                            <div class="flex gap-2">
+                                <button onclick="resetRolePin('intake')" class="flex-1 py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-lg text-[11px] text-slate-300">Front Desk</button>
+                                <button onclick="resetRolePin('tech')" class="flex-1 py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-lg text-[11px] text-slate-300">Technician</button>
+                            </div>
+                        </div>
+                        <div class="space-y-1.5 border-t border-slate-700/60 pt-3">
+                            <div class="text-xs font-semibold text-slate-300">Database</div>
+                            <div class="text-[10px] text-slate-500 break-all" id="ceo-db-path"></div>
+                            <div class="flex gap-2">
+                                <a href="#" onclick="downloadExportJson(event)" class="flex-1 text-center py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-lg text-[11px] text-slate-300">Export JSON</a>
+                                <label class="flex-1 text-center py-1.5 bg-cyan-950 hover:bg-cyan-900 border border-cyan-800 rounded-lg text-[11px] text-cyan-300 cursor-pointer">
+                                    Import Old Backup
+                                    <input type="file" accept=".json,application/json" class="hidden" onchange="importOldBackup(this)">
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="glass-panel p-5 rounded-2xl space-y-4">
+                        <h3 class="font-bold text-slate-200 text-base flex items-center gap-2 pb-3 border-b border-slate-700/60">
+                            <i class="fa-solid fa-boxes-packing text-amber-400"></i> Components Used
+                        </h3>
+                        <div id="ceo-parts-summary" class="space-y-2.5 max-h-[320px] overflow-y-auto custom-scrollbar pr-1"></div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- 2. FRONT DESK VIEW -->
+        <section id="view-intake" class="role-view space-y-6 hidden">
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <div class="lg:col-span-1 glass-panel p-6 rounded-2xl space-y-5 border border-cyan-500/20 self-start">
+                    <div class="border-b border-slate-700 pb-3">
+                        <h2 class="text-xl font-bold text-white flex items-center gap-2">
+                            <i class="fa-solid fa-file-circle-plus text-cyan-400"></i> Register New Repair
+                        </h2>
+                        <p class="text-xs text-slate-400 mt-1">Take the customer's details and save. The technician sees it instantly.</p>
+                    </div>
+
+                    <form id="order-intake-form" onsubmit="handleCreateOrder(event)" class="space-y-4">
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-300 mb-1">Bill Number *</label>
+                            <div class="flex items-center gap-2">
+                                <input type="text" id="intake-bill" required maxlength="40" oninput="billTouched = true" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs font-mono text-cyan-400 font-bold uppercase focus:border-cyan-500 focus:outline-none">
+                                <button type="button" onclick="useNextBillId()" class="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs border border-slate-600 transition" title="Use next automatic number">
+                                    <i class="fa-solid fa-arrows-rotate"></i>
+                                </button>
+                            </div>
+                            <p class="text-[10px] text-slate-500 mt-1">Auto-numbered. You can type your paper bill number instead.</p>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-300 mb-1">Customer Name *</label>
+                            <input type="text" id="intake-customer" required maxlength="120" placeholder="e.g. Kamal Perera" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:border-cyan-500 focus:outline-none transition">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-300 mb-1">Contact Number *</label>
+                            <input type="tel" id="intake-phone" required maxlength="40" placeholder="e.g. 077 123 4567" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:border-cyan-500 focus:outline-none transition">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-300 mb-1">Product Name / Model *</label>
+                            <input type="text" id="intake-product" required maxlength="200" placeholder="e.g. Dell Inspiron 15 / Samsung TV 43&quot;" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:border-cyan-500 focus:outline-none transition">
+                        </div>
+                        <div class="grid grid-cols-2 gap-3">
+                            <div>
+                                <label class="block text-xs font-semibold text-slate-300 mb-1">Service Payment (Rs.) *</label>
+                                <input type="number" step="0.01" min="0" id="intake-fee" required placeholder="2500.00" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:border-cyan-500 focus:outline-none transition">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-semibold text-slate-300 mb-1">Release Date *</label>
+                                <input type="datetime-local" id="intake-deadline" required class="w-full bg-slate-900 border border-slate-700 rounded-xl px-2.5 py-2 text-xs text-white focus:border-cyan-500 focus:outline-none transition">
+                            </div>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-300 mb-1">Fault Description</label>
+                            <textarea id="intake-notes" rows="2" maxlength="2000" placeholder="e.g. No power, water damage..." class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:border-cyan-500 focus:outline-none transition"></textarea>
+                        </div>
+                        <button type="submit" class="w-full py-3 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white font-bold text-xs rounded-xl shadow-lg shadow-cyan-500/20 transition flex items-center justify-center space-x-2">
+                            <i class="fa-solid fa-save text-sm"></i><span>SAVE REPAIR ORDER</span>
+                        </button>
+                    </form>
+                </div>
+
+                <div class="lg:col-span-2 glass-panel p-6 rounded-2xl space-y-4">
+                    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-700">
+                        <div>
+                            <h3 class="text-lg font-bold text-white flex items-center gap-2">
+                                <i class="fa-solid fa-magnifying-glass text-cyan-400"></i> Repair Orders &amp; Customer Search
+                            </h3>
+                            <p class="text-xs text-slate-400">Search by phone number, bill number, name or product.</p>
+                        </div>
+                        <span class="text-xs bg-slate-800 text-slate-400 px-3 py-1 rounded-full border border-slate-700 self-start sm:self-auto" id="intake-count-badge">0</span>
+                    </div>
+                    <div class="relative">
+                        <i class="fa-solid fa-magnifying-glass absolute left-3.5 top-3 text-slate-400 text-sm"></i>
+                        <input type="text" id="intake-search-input" oninput="renderIntakeList()" placeholder="Type phone number or bill number..." class="w-full bg-slate-900 border border-cyan-500/40 rounded-xl pl-10 pr-4 py-2.5 text-xs text-white placeholder-slate-500 focus:border-cyan-400 focus:ring-1 focus:ring-cyan-400 focus:outline-none transition">
+                    </div>
+                    <div id="intake-orders-list" class="space-y-3 max-h-[600px] overflow-y-auto custom-scrollbar pr-1"></div>
+                </div>
+            </div>
+        </section>
+
+        <!-- 3. TECHNICIAN VIEW -->
+        <section id="view-tech" class="role-view space-y-6 hidden">
+            <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-slate-800/60 p-5 rounded-2xl border border-slate-700">
+                <div>
+                    <h2 class="text-2xl font-bold text-white flex items-center gap-2">
+                        <i class="fa-solid fa-screwdriver-wrench text-amber-400"></i> Technician Workbench
+                    </h2>
+                    <p class="text-xs text-slate-400 mt-1">Pending jobs are ordered by priority: the earliest release date comes first.</p>
+                </div>
+                <div class="flex items-center bg-slate-900/90 p-1 rounded-xl border border-slate-700 flex-wrap gap-1">
+                    <button onclick="setTechFilter('PENDING')" id="tech-tab-PENDING" class="tech-tab-btn px-3 py-1.5 rounded-lg text-xs font-semibold transition">Pending</button>
+                    <button onclick="setTechFilter('COMPLETED')" id="tech-tab-COMPLETED" class="tech-tab-btn px-3 py-1.5 rounded-lg text-xs font-semibold transition">Completed</button>
+                    <button onclick="setTechFilter('SUCCESSFUL')" id="tech-tab-SUCCESSFUL" class="tech-tab-btn px-3 py-1.5 rounded-lg text-xs font-semibold transition">└ Successful</button>
+                    <button onclick="setTechFilter('UNREPAIRABLE')" id="tech-tab-UNREPAIRABLE" class="tech-tab-btn px-3 py-1.5 rounded-lg text-xs font-semibold transition">└ Dead</button>
+                    <button onclick="setTechFilter('ALL')" id="tech-tab-ALL" class="tech-tab-btn px-3 py-1.5 rounded-lg text-xs font-semibold transition">All</button>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <div class="bg-slate-900/90 p-3.5 rounded-xl border border-slate-800 flex items-center justify-between">
+                    <div><div class="text-[10px] font-semibold text-amber-400 uppercase">Pending</div><div class="text-xl font-bold text-amber-300 mt-0.5" id="tech-stat-pending">0</div></div>
+                    <i class="fa-solid fa-hourglass-half text-amber-400 text-lg"></i>
+                </div>
+                <div class="bg-slate-900/90 p-3.5 rounded-xl border border-slate-800 flex items-center justify-between">
+                    <div><div class="text-[10px] font-semibold text-blue-400 uppercase">Completed</div><div class="text-xl font-bold text-blue-300 mt-0.5" id="tech-stat-completed">0</div></div>
+                    <i class="fa-solid fa-circle-check text-blue-400 text-lg"></i>
+                </div>
+                <div class="bg-slate-900/90 p-3.5 rounded-xl border border-slate-800 flex items-center justify-between">
+                    <div><div class="text-[10px] font-semibold text-emerald-400 uppercase">└ Successful</div><div class="text-xl font-bold text-emerald-300 mt-0.5" id="tech-stat-successful">0</div></div>
+                    <i class="fa-solid fa-wand-magic-sparkles text-emerald-400 text-lg"></i>
+                </div>
+                <div class="bg-slate-900/90 p-3.5 rounded-xl border border-slate-800 flex items-center justify-between">
+                    <div><div class="text-[10px] font-semibold text-rose-400 uppercase">└ Dead</div><div class="text-xl font-bold text-rose-300 mt-0.5" id="tech-stat-dead">0</div></div>
+                    <i class="fa-solid fa-skull text-rose-400 text-lg"></i>
+                </div>
+            </div>
+
+            <div id="tech-jobs-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"></div>
+        </section>
+    </main>
+    </div>
+
+    <!-- MODAL: Technician work log -->
+    <div id="tech-modal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-md hidden z-50 flex items-center justify-center p-4">
+        <div class="glass-panel max-w-xl w-full rounded-2xl p-6 border border-slate-700 shadow-2xl space-y-5 max-h-[95vh] overflow-y-auto custom-scrollbar">
+            <div class="flex items-center justify-between border-b border-slate-700 pb-3">
+                <div>
+                    <h3 class="text-lg font-bold text-white flex items-center gap-2"><i class="fa-solid fa-sliders text-cyan-400"></i> Update Repair</h3>
+                    <p class="text-xs text-slate-400" id="modal-bill-subtitle"></p>
+                </div>
+                <button onclick="closeModal('tech-modal')" class="text-slate-400 hover:text-white p-1"><i class="fa-solid fa-xmark text-xl"></i></button>
+            </div>
+
+            <form id="tech-update-form" onsubmit="handleTechUpdateSave(event)" class="space-y-4">
+                <input type="hidden" id="modal-order-id">
+                <div class="space-y-3 bg-slate-900/80 p-3.5 rounded-xl border border-slate-800">
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-300 mb-1">Repair Stage</label>
+                        <select id="modal-stage" onchange="toggleOutcomeField()" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:border-cyan-500 focus:outline-none">
+                            <option value="PENDING">Pending (still working on it)</option>
+                            <option value="COMPLETED">Completed (work finished)</option>
+                        </select>
+                    </div>
+                    <div id="outcome-container">
+                        <label class="block text-xs font-semibold text-slate-300 mb-1">Result</label>
+                        <select id="modal-outcome" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:border-cyan-500 focus:outline-none">
+                            <option value="Successful">✅ Working – repaired successfully</option>
+                            <option value="Unrepairable">💀 Dead – cannot be repaired</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold text-slate-300 mb-1">Comment</label>
+                    <div class="flex flex-wrap gap-2 mb-2">
+                        <button type="button" onclick="appendQuickComment('Product is dead / cannot be repaired.')" class="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-[11px] text-slate-300 rounded-lg border border-slate-700">💀 Dead item</button>
+                        <button type="button" onclick="appendQuickComment('Working successfully without repair (no fault found).')" class="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-[11px] text-slate-300 rounded-lg border border-slate-700">✔️ Working without repair</button>
+                        <button type="button" onclick="appendQuickComment('Repaired without replacing parts (cleaned / re-soldered).')" class="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-[11px] text-slate-300 rounded-lg border border-slate-700">⚡ Repaired, no parts</button>
+                        <button type="button" onclick="appendQuickComment('Replaced faulty components and tested.')" class="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-[11px] text-slate-300 rounded-lg border border-slate-700">🛠️ Components replaced</button>
+                    </div>
+                    <textarea id="modal-comment" rows="3" maxlength="4000" placeholder="Write what you found or did..." class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:border-cyan-500 focus:outline-none"></textarea>
+                </div>
+
+                <div class="space-y-2 border-t border-slate-700/60 pt-3">
+                    <div class="flex items-center justify-between">
+                        <label class="text-xs font-semibold text-slate-300 flex items-center gap-1.5"><i class="fa-solid fa-microchip text-amber-400"></i> Components Used</label>
+                        <button type="button" onclick="addPartRow()" class="px-2.5 py-1 bg-cyan-950 hover:bg-cyan-900 text-cyan-300 text-[11px] font-semibold rounded-lg border border-cyan-800 transition flex items-center gap-1"><i class="fa-solid fa-plus"></i> Add Component</button>
+                    </div>
+                    <div class="flex items-center gap-2 text-[10px] text-slate-500 px-0.5"><span class="flex-1">SKU number or name</span><span class="w-24">Quantity</span><span class="w-6"></span></div>
+                    <div id="modal-parts-container" class="space-y-2 max-h-48 overflow-y-auto custom-scrollbar pr-1"></div>
+                </div>
+
+                <div class="flex items-center justify-end space-x-3 pt-3 border-t border-slate-700">
+                    <button type="button" onclick="closeModal('tech-modal')" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold rounded-xl transition">Cancel</button>
+                    <button type="submit" class="px-5 py-2 bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-bold rounded-xl shadow-lg shadow-cyan-600/30 transition">Save</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- MODAL: CEO billing confirmation -->
+    <div id="ceo-confirm-modal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-md hidden z-50 flex items-center justify-center p-4">
+        <div class="glass-panel max-w-2xl w-full rounded-2xl p-6 border border-purple-500/30 shadow-2xl space-y-5 max-h-[95vh] overflow-y-auto custom-scrollbar">
+            <div class="flex items-center justify-between border-b border-slate-700 pb-3">
+                <div>
+                    <h3 class="text-lg font-bold text-white flex items-center gap-2"><i class="fa-solid fa-user-check text-purple-400"></i> Manager Final Billing</h3>
+                    <p class="text-xs text-slate-400" id="ceo-modal-subtitle"></p>
+                </div>
+                <button onclick="closeModal('ceo-confirm-modal')" class="text-slate-400 hover:text-white p-1"><i class="fa-solid fa-xmark text-xl"></i></button>
+            </div>
+
+            <form id="ceo-confirm-form" onsubmit="handleCEOBillingConfirm(event)" class="space-y-4">
+                <input type="hidden" id="ceo-modal-order-id">
+                <div class="bg-slate-900 p-4 rounded-xl border border-slate-800 space-y-2 text-xs">
+                    <div class="text-slate-400"><strong class="text-slate-200">Customer:</strong> <span id="ceo-review-customer"></span></div>
+                    <div class="text-slate-400"><strong class="text-slate-200">Product:</strong> <span id="ceo-review-product"></span></div>
+                    <div class="text-slate-400"><strong class="text-slate-200">Technician notes:</strong></div>
+                    <p class="p-2 bg-slate-950 rounded-lg text-cyan-300 italic text-[11px] whitespace-pre-wrap" id="ceo-review-notes"></p>
+                </div>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-300 mb-1">Service Charge (Rs.)</label>
+                        <input type="number" step="0.01" min="0" id="ceo-base-fee" oninput="calculateCEOGrandTotal()" required class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:border-purple-500 focus:outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-300 mb-1">Extra / Handling Fee (Rs.)</label>
+                        <input type="number" step="0.01" min="0" id="ceo-extra-fee" oninput="calculateCEOGrandTotal()" placeholder="0.00" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:border-purple-500 focus:outline-none">
+                    </div>
+                </div>
+                <div class="space-y-2">
+                    <label class="text-xs font-semibold text-slate-300 flex items-center justify-between">
+                        <span><i class="fa-solid fa-tags text-amber-400 mr-1"></i> Component Prices</span>
+                        <span class="text-[11px] text-slate-400">Price per item</span>
+                    </label>
+                    <div id="ceo-parts-editor" class="space-y-2 max-h-36 overflow-y-auto custom-scrollbar pr-1"></div>
+                </div>
+                <div class="bg-purple-950/20 border border-purple-500/40 p-4 rounded-xl flex items-center justify-between">
+                    <div>
+                        <div class="text-xs font-semibold text-purple-300">Grand Total</div>
+                        <div class="text-[10px] text-purple-400">Service + extra fee + components</div>
+                    </div>
+                    <div class="text-2xl font-extrabold text-emerald-400 font-mono" id="ceo-modal-grand-total">Rs. 0.00</div>
+                </div>
+                <div class="flex items-center justify-end space-x-3 pt-3 border-t border-slate-700">
+                    <button type="button" onclick="closeModal('ceo-confirm-modal')" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold rounded-xl transition">Cancel</button>
+                    <button type="submit" class="px-5 py-2 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white text-xs font-bold rounded-xl shadow-lg shadow-purple-600/30 transition flex items-center gap-1.5">
+                        <i class="fa-solid fa-check-double"></i> Confirm Billing
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- MODAL: Order details / invoice -->
+    <div id="detail-view-modal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-md hidden z-50 flex items-center justify-center p-4">
+        <div class="glass-panel max-w-xl w-full rounded-2xl p-6 border border-slate-700 shadow-2xl space-y-5 max-h-[95vh] overflow-y-auto custom-scrollbar">
+            <div id="print-area" class="space-y-5">
+                <div id="print-header" class="text-center pb-2">
+                    <div style="font-size:20px;font-weight:800">ALPHATRONIC</div>
+                    <div style="font-size:11px">Repair Service Invoice</div>
+                </div>
+                <div class="flex items-center justify-between border-b border-slate-700 pb-3">
+                    <div class="flex items-center space-x-2">
+                        <div class="p-2 bg-cyan-500/20 rounded-xl text-cyan-400 border border-cyan-500/30 no-print"><i class="fa-solid fa-receipt text-lg"></i></div>
+                        <div>
+                            <h3 class="text-base font-bold text-white">Repair Invoice &amp; Status</h3>
+                            <p class="text-xs font-mono text-cyan-400 font-semibold" id="detail-bill-id"></p>
+                        </div>
+                    </div>
+                    <button onclick="closeModal('detail-view-modal')" class="text-slate-400 hover:text-white p-1 no-print"><i class="fa-solid fa-xmark text-xl"></i></button>
+                </div>
+                <div id="detail-modal-body" class="space-y-4 text-xs"></div>
+            </div>
+            <div class="flex items-center justify-between pt-3 border-t border-slate-700">
+                <button onclick="window.print()" class="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-600 rounded-xl text-xs font-semibold transition flex items-center gap-1.5">
+                    <i class="fa-solid fa-print"></i> Print
+                </button>
+                <button onclick="closeModal('detail-view-modal')" class="px-4 py-2 bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-bold rounded-xl transition">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL: Change my PIN -->
+    <div id="pin-modal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-md hidden z-50 flex items-center justify-center p-4">
+        <form onsubmit="submitPinChange(event)" class="glass-panel max-w-sm w-full rounded-2xl p-6 border border-slate-700 shadow-2xl space-y-4">
+            <h3 class="text-lg font-bold text-white flex items-center gap-2"><i class="fa-solid fa-key text-cyan-400"></i> Change My PIN</h3>
+            <input type="password" inputmode="numeric" maxlength="8" id="pin-new" required placeholder="New PIN (4-8 digits)" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2.5 text-center font-mono tracking-[0.4em] text-white focus:border-cyan-500 focus:outline-none">
+            <input type="password" inputmode="numeric" maxlength="8" id="pin-new2" required placeholder="Type again" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2.5 text-center font-mono tracking-[0.4em] text-white focus:border-cyan-500 focus:outline-none">
+            <div class="flex justify-end gap-3">
+                <button type="button" onclick="closeModal('pin-modal')" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold rounded-xl">Cancel</button>
+                <button type="submit" class="px-5 py-2 bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-bold rounded-xl">Save PIN</button>
+            </div>
+        </form>
+    </div>
+
+    <!-- MODAL: Activity log (CEO) -->
+    <div id="activity-modal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-md hidden z-50 flex items-center justify-center p-4">
+        <div class="glass-panel max-w-2xl w-full rounded-2xl p-6 border border-slate-700 shadow-2xl space-y-4">
+            <div class="flex items-center justify-between border-b border-slate-700 pb-3">
+                <h3 class="text-lg font-bold text-white flex items-center gap-2"><i class="fa-solid fa-clock-rotate-left text-cyan-400"></i> Activity Log (last 200)</h3>
+                <button onclick="closeModal('activity-modal')" class="text-slate-400 hover:text-white p-1"><i class="fa-solid fa-xmark text-xl"></i></button>
+            </div>
+            <div id="activity-body" class="max-h-[60vh] overflow-y-auto custom-scrollbar text-xs"></div>
+        </div>
+    </div>
+
+    <div id="toast-container" class="fixed bottom-4 right-4 z-[60] space-y-2 max-w-sm"></div>
+
+    <script>
+        // ==============================================================
+        // State
+        // ==============================================================
+        const SESSION_KEY = 'ALPHATRONIC_ERP_SESSION';
+        const DEVICE_KEY = 'ALPHATRONIC_ERP_DEVICE';
+        const ROLE_META = {
+            ceo:    { name: 'Manager',    icon: 'fa-user-tie',       desc: 'All repairs, billing and total income' },
+            intake: { name: 'Front Desk', icon: 'fa-clipboard-list', desc: 'Take repair orders from customers' },
+            tech:   { name: 'Technician', icon: 'fa-microchip',      desc: 'Do repairs, add comments & components' }
+        };
+
+        let session = null;          // { token, role, roleName }
+        let serverInfo = null;
+        let roleStatus = [];         // [{ role, name, hasPin }]
+        let loginRole = null;
+        let orders = [];
+        let nextBillId = '';
+        let billTouched = false;
+        let techFilter = 'PENDING';
+        let presence = [];
+
+        // ==============================================================
+        // Helpers
+        // ==============================================================
+        function esc(v) {
+            return String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+        }
+        // Safe string argument for inline onclick="fn(...)"
+        const jsArg = v => esc(JSON.stringify(String(v)));
+        const fmtMoney = n => 'Rs. ' + (Number(n) || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        const fmtDate = d => { const x = new Date(d); return isNaN(x) ? '-' : x.toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' }); };
+        function localDateTimeValue(date) {
+            const p = n => String(n).padStart(2, '0');
+            return `${date.getFullYear()}-${p(date.getMonth() + 1)}-${p(date.getDate())}T${p(date.getHours())}:${p(date.getMinutes())}`;
+        }
+        const partsTotal = o => (o.parts || []).reduce((s, p) => s + (p.qty || 1) * (p.unitPrice || 0), 0);
+        const orderTotal = o => (o.fee || 0) + (o.extraFee || 0) + partsTotal(o);
+        const isCompleted = o => o.status === 'Waiting for CEO Confirmation' || o.status === 'CEO Confirmed';
+
+        function toast(message, kind = 'ok') {
+            const colors = { ok: 'border-emerald-500/40 text-emerald-200', err: 'border-rose-500/40 text-rose-200', info: 'border-cyan-500/40 text-cyan-200' };
+            const icons = { ok: 'fa-circle-check', err: 'fa-triangle-exclamation', info: 'fa-circle-info' };
+            const el = document.createElement('div');
+            el.className = `toast glass-panel px-4 py-3 rounded-xl border text-xs flex items-start gap-2 shadow-xl ${colors[kind]}`;
+            el.innerHTML = `<i class="fa-solid ${icons[kind]} mt-0.5"></i><span>${esc(message)}</span>`;
+            document.getElementById('toast-container').appendChild(el);
+            setTimeout(() => el.remove(), kind === 'err' ? 6000 : 3500);
+        }
+
+        function openModal(id) { document.getElementById(id).classList.remove('hidden'); }
+        function closeModal(id) { document.getElementById(id).classList.add('hidden'); }
+        document.addEventListener('keydown', e => {
+            if (e.key === 'Escape') ['tech-modal', 'ceo-confirm-modal', 'detail-view-modal', 'pin-modal', 'activity-modal'].forEach(closeModal);
+        });
+
+        async function api(path, options = {}) {
+            const headers = { 'Content-Type': 'application/json', ...(options.headers || {}) };
+            if (session) headers.Authorization = 'Bearer ' + session.token;
+            const res = await fetch(path, { ...options, headers });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) { const err = new Error(data.error || `Error ${res.status}`); err.status = res.status; throw err; }
+            return data;
+        }
+
+        // ==============================================================
+        // Live connection (full-duplex WebSocket to the main laptop)
+        // ==============================================================
+        const Net = {
+            ws: null, seq: 0, pending: new Map(), retry: 0, timer: null, stopped: false,
+
+            connect() {
+                clearTimeout(this.timer);
+                if (this.stopped || !session) return;
+                if (this.ws && (this.ws.readyState === WebSocket.OPEN || this.ws.readyState === WebSocket.CONNECTING)) return;
+                setConnectionState('connecting');
+                const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+                const ws = new WebSocket(`${proto}://${location.host}/ws?token=${encodeURIComponent(session.token)}`);
+                this.ws = ws;
+                ws.onopen = () => { this.retry = 0; setConnectionState('live'); };
+                ws.onmessage = e => { try { this.onMessage(JSON.parse(e.data)); } catch (err) { console.error(err); } };
+                ws.onclose = () => {
+                    if (this.ws !== ws) return;
+                    for (const [, p] of this.pending) { clearTimeout(p.timer); p.reject(new Error('Connection lost. Please try again.')); }
+                    this.pending.clear();
+                    if (this.stopped) return;
+                    setConnectionState('down');
+                    this.scheduleReconnect();
+                };
+            },
+
+            async scheduleReconnect() {
+                const delay = Math.min(1000 * Math.pow(2, this.retry++), 8000);
+                this.timer = setTimeout(async () => {
+                    // If the server is reachable but says our session is gone, go back to login.
+                    try { await api('/api/session'); }
+                    catch (e) { if (e.status === 401) { forceLogout('Your session ended. Please log in again.'); return; } }
+                    this.connect();
+                }, delay);
+            },
+
+            onMessage(msg) {
+                switch (msg.type) {
+                    case 'hello': serverInfo = msg.server; renderServerInfo(); break;
+                    case 'snapshot':
+                        orders = msg.orders || [];
+                        if (msg.nextBillId) { nextBillId = msg.nextBillId; if (!billTouched) setBillField(nextBillId); }
+                        renderActiveView();
+                        break;
+                    case 'presence':
+                        presence = msg.devices || [];
+                        setConnectionState('live', msg.devices ? msg.devices.length : msg.count);
+                        if (session && session.role === 'ceo') renderPresence();
+                        break;
+                    case 'result': {
+                        const p = this.pending.get(msg.reqId);
+                        if (!p) return;
+                        clearTimeout(p.timer);
+                        this.pending.delete(msg.reqId);
+                        msg.ok ? p.resolve(msg.data) : p.reject(new Error(msg.error || 'Failed.'));
+                        break;
+                    }
+                    case 'logout': forceLogout(msg.reason); break;
+                }
+            },
+
+            call(action, payload) {
+                return new Promise((resolve, reject) => {
+                    if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
+                        return reject(new Error('Not connected to the main laptop. Reconnecting... try again in a moment.'));
+                    }
+                    const reqId = ++this.seq;
+                    const timer = setTimeout(() => { this.pending.delete(reqId); reject(new Error('The main laptop did not answer. Try again.')); }, 15000);
+                    this.pending.set(reqId, { resolve, reject, timer });
+                    this.ws.send(JSON.stringify({ type: 'action', reqId, action, payload }));
+                });
+            },
+
+            stop() {
+                this.stopped = true;
+                clearTimeout(this.timer);
+                if (this.ws) this.ws.close();
+            }
+        };
+
+        // A laptop waking from sleep or rejoining Wi-Fi reconnects immediately.
+        window.addEventListener('online', () => { Net.retry = 0; Net.connect(); });
+        document.addEventListener('visibilitychange', () => { if (!document.hidden) { Net.retry = 0; Net.connect(); } });
+
+        function setConnectionState(state, count) {
+            const dot = document.getElementById('network-status-dot');
+            const label = document.getElementById('network-status-text');
+            const banner = document.getElementById('offline-banner');
+            if (state === 'live') {
+                dot.className = 'w-2.5 h-2.5 rounded-full bg-emerald-400';
+                label.innerText = count ? `Live · ${count} online` : 'Live';
+                banner.classList.add('hidden');
+            } else if (state === 'connecting') {
+                dot.className = 'w-2.5 h-2.5 rounded-full bg-amber-500 animate-pulse';
+                label.innerText = 'Connecting...';
+            } else {
+                dot.className = 'w-2.5 h-2.5 rounded-full bg-rose-500 animate-pulse';
+                label.innerText = 'Offline';
+                banner.classList.remove('hidden');
+            }
+        }
+
+        // ==============================================================
+        // Login
+        // ==============================================================
+        window.addEventListener('load', init);
+
+        async function init() {
+            if (location.protocol === 'file:') {
+                showLoginScreen();
+                showServerError(`This file must be opened through the ERP server, not by double-clicking it.<br>
+                    On the main laptop run <b>Start_Alphatronic_ERP.bat</b>, then open <b>http://localhost:8080</b>.`);
+                return;
+            }
+            try { session = JSON.parse(localStorage.getItem(SESSION_KEY) || 'null'); } catch (_) { session = null; }
+            if (session && session.token) {
+                try {
+                    const s = await api('/api/session');
+                    session.role = s.role; session.roleName = s.roleName;
+                    return startApp();
+                } catch (e) {
+                    if (e.status !== 401) {
+                        // Server not reachable right now: open the app anyway and keep retrying.
+                        return startApp();
+                    }
+                    clearSession();
+                }
+            }
+            showLoginScreen();
+            loadRoleStatus();
+        }
+
+        async function loadRoleStatus() {
+            try {
+                const st = await api('/api/status');
+                roleStatus = st.roles;
+                serverInfo = st.server;
+                document.getElementById('login-server-error').classList.add('hidden');
+                document.getElementById('login-footer').innerHTML =
+                    `Other laptops open: <span class="text-cyan-400 font-mono">${esc(serverInfo.primaryUrl)}</span>`;
+                renderRoleCards();
+            } catch (e) {
+                showServerError('Cannot reach the ERP server. Make sure <b>Start_Alphatronic_ERP.bat</b> is running on the main laptop and both laptops are on the same Wi-Fi. Retrying...');
+                setTimeout(loadRoleStatus, 3000);
+            }
+        }
+
+        function showServerError(html) {
+            const el = document.getElementById('login-server-error');
+            el.innerHTML = `<i class="fa-solid fa-triangle-exclamation mr-1"></i> ${html}`;
+            el.classList.remove('hidden');
+        }
+
+        function showLoginScreen() {
+            document.getElementById('app').classList.add('hidden');
+            document.getElementById('login-screen').classList.remove('hidden');
+            showRoleStep();
+        }
+
+        function renderRoleCards() {
+            document.getElementById('login-step-role').innerHTML = ['ceo', 'intake', 'tech'].map(role => {
+                const m = ROLE_META[role];
+                const st = roleStatus.find(r => r.role === role) || {};
+                return `
+                    <button onclick="chooseLoginRole('${role}')" class="role-card glass-panel rounded-2xl p-6 text-left space-y-3 border border-slate-700 hover:border-cyan-500/60 transition">
+                        <div class="inline-flex p-3 rounded-xl bg-cyan-500/15 text-cyan-400 border border-cyan-500/30"><i class="fa-solid ${m.icon} text-2xl"></i></div>
+                        <div class="text-lg font-bold text-white">${m.name}</div>
+                        <div class="text-xs text-slate-400">${m.desc}</div>
+                        <div class="text-[10px] ${st.hasPin ? 'text-slate-500' : 'text-cyan-400'}">
+                            ${st.hasPin ? '<i class="fa-solid fa-lock mr-1"></i>PIN protected' : '<i class="fa-solid fa-star mr-1"></i>First time: you will create the PIN'}
+                        </div>
+                    </button>`;
+            }).join('');
+        }
+
+        function showRoleStep() {
+            document.getElementById('login-step-role').classList.remove('hidden');
+            document.getElementById('login-step-pin').classList.add('hidden');
+            document.getElementById('login-subtitle').innerText = 'Who are you? Select your role to continue.';
+        }
+
+        function chooseLoginRole(role) {
+            loginRole = role;
+            const st = roleStatus.find(r => r.role === role) || {};
+            const firstTime = !st.hasPin;
+            document.getElementById('login-role-name').innerText = ROLE_META[role].name;
+            document.getElementById('login-first-time-note').classList.toggle('hidden', !firstTime);
+            document.getElementById('login-pin2-wrap').classList.toggle('hidden', !firstTime);
+            document.getElementById('login-pin2').required = firstTime;
+            document.getElementById('login-pin-label').innerText = firstTime ? 'Create PIN' : 'Enter PIN';
+            document.getElementById('login-pin').value = '';
+            document.getElementById('login-pin2').value = '';
+            document.getElementById('login-device').value = localStorage.getItem(DEVICE_KEY) || `${ROLE_META[role].name} Laptop`;
+            document.getElementById('login-error').classList.add('hidden');
+            document.getElementById('login-step-role').classList.add('hidden');
+            document.getElementById('login-step-pin').classList.remove('hidden');
+            document.getElementById('login-subtitle').innerText = 'Enter your PIN.';
+            document.getElementById('login-pin').focus();
+        }
+
+        async function submitLogin(e) {
+            e.preventDefault();
+            const errBox = document.getElementById('login-error');
+            const showErr = m => { errBox.innerText = m; errBox.classList.remove('hidden'); };
+            const pin = document.getElementById('login-pin').value.trim();
+            const firstTime = !document.getElementById('login-pin2-wrap').classList.contains('hidden');
+            if (!/^\d{4,8}$/.test(pin)) return showErr('PIN must be 4 to 8 digits (numbers only).');
+            if (firstTime && pin !== document.getElementById('login-pin2').value.trim()) return showErr('The two PINs do not match.');
+            const device = document.getElementById('login-device').value.trim() || 'Laptop';
+
+            const btn = document.getElementById('login-submit');
+            btn.disabled = true;
+            try {
+                const r = await api('/api/login', { method: 'POST', body: JSON.stringify({ role: loginRole, pin, device }) });
+                session = { token: r.token, role: r.role, roleName: r.roleName };
+                localStorage.setItem(SESSION_KEY, JSON.stringify(session));
+                localStorage.setItem(DEVICE_KEY, device);
+                if (r.firstTime) toast(`PIN created for ${r.roleName}. Remember it!`, 'info');
+                startApp();
+            } catch (err) {
+                showErr(err.message);
+                if (err.status === 401) document.getElementById('login-pin').value = '';
+                loadRoleStatus();
+            } finally {
+                btn.disabled = false;
+            }
+        }
+
+        function clearSession() {
+            session = null;
+            localStorage.removeItem(SESSION_KEY);
+        }
+
+        async function logout() {
+            if (!confirm('Log out from this laptop?')) return;
+            try { await api('/api/logout', { method: 'POST' }); } catch (_) {}
+            Net.stop();
+            clearSession();
+            location.reload();
+        }
+
+        function forceLogout(reason) {
+            Net.stop();
+            clearSession();
+            alert(reason || 'Please log in again.');
+            location.reload();
+        }
+
+        // ==============================================================
+        // App start: show ONLY this person's part of the system
+        // ==============================================================
+        function startApp() {
+            const role = session.role;
+            document.getElementById('login-screen').classList.add('hidden');
+            document.getElementById('app').classList.remove('hidden');
+            document.getElementById('header-role-name').innerText = ROLE_META[role].name;
+            document.getElementById('header-role-icon').className = `fa-solid ${ROLE_META[role].icon} text-cyan-400`;
+
+            // Remove other roles' screens from the page completely.
+            document.querySelectorAll('.role-view').forEach(v => { if (v.id !== `view-${role}`) v.remove(); });
+            document.getElementById(`view-${role}`).classList.remove('hidden');
+            if (role !== 'ceo') { document.getElementById('ceo-confirm-modal').remove(); document.getElementById('activity-modal').remove(); }
+            if (role === 'intake') { document.getElementById('tech-modal').remove(); initDefaultDeadline(); }
+            if (role === 'tech') { document.getElementById('detail-view-modal').remove(); setTechFilter('PENDING'); }
+
+            Net.connect();
+        }
+
+        function renderActiveView() {
+            if (!session) return;
+            if (session.role === 'ceo') renderCEODashboard();
+            if (session.role === 'intake') renderIntakeList();
+            if (session.role === 'tech') renderTechDashboard();
+        }
+
+        // ==============================================================
+        // Front desk
+        // ==============================================================
+        function setBillField(v) { const el = document.getElementById('intake-bill'); if (el) el.value = v; }
+        function useNextBillId() { billTouched = false; setBillField(nextBillId); }
+
+        function initDefaultDeadline() {
+            const d = new Date();
+            d.setDate(d.getDate() + 2);
+            d.setHours(17, 0, 0, 0);
+            document.getElementById('intake-deadline').value = localDateTimeValue(d);
+        }
+
+        async function handleCreateOrder(e) {
+            e.preventDefault();
+            const payload = {
+                id: document.getElementById('intake-bill').value,
+                customer: document.getElementById('intake-customer').value,
+                phone: document.getElementById('intake-phone').value,
+                product: document.getElementById('intake-product').value,
+                fee: document.getElementById('intake-fee').value,
+                deadline: document.getElementById('intake-deadline').value,
+                notes: document.getElementById('intake-notes').value
+            };
+            try {
+                const r = await Net.call('createOrder', payload);
+                document.getElementById('order-intake-form').reset();
+                billTouched = false;
+                setBillField(nextBillId);
+                initDefaultDeadline();
+                toast(`Order ${r.id} saved.`);
+            } catch (err) { toast(err.message, 'err'); }
+        }
+
+        function renderIntakeList() {
+            const container = document.getElementById('intake-orders-list');
+            const q = (document.getElementById('intake-search-input').value || '').toLowerCase().trim();
+            const pendingCount = orders.filter(o => !isCompleted(o)).length;
+            document.getElementById('intake-count-badge').innerText = `${orders.length} total · ${pendingCount} pending`;
+
+            const filtered = orders.filter(o => !q || [o.phone, o.id, o.customer, o.product].some(v => (v || '').toLowerCase().includes(q)));
+            if (!filtered.length) {
+                container.innerHTML = `<div class="text-center py-8 text-slate-500 text-xs">${orders.length ? 'No matching repair orders found.' : 'No repair orders yet. Register the first one on the left.'}</div>`;
+                return;
+            }
+            container.innerHTML = filtered.map(o => `
+                <div class="p-4 bg-slate-900/90 rounded-xl border border-slate-800 hover:border-slate-700 transition flex flex-col md:flex-row md:items-center justify-between gap-3">
+                    <div class="space-y-1">
+                        <div class="flex items-center space-x-2 flex-wrap gap-y-1">
+                            <span class="font-mono text-xs font-bold text-cyan-400">${esc(o.id)}</span>
+                            ${statusBadge(o)}
+                        </div>
+                        <div class="text-sm font-bold text-white">${esc(o.product)}</div>
+                        <div class="text-xs text-slate-400 flex flex-wrap gap-x-4 gap-y-1">
+                            <span><i class="fa-solid fa-user text-slate-500 mr-1"></i>${esc(o.customer)}</span>
+                            <span><i class="fa-solid fa-phone text-slate-500 mr-1"></i><strong class="text-slate-300">${esc(o.phone)}</strong></span>
+                            <span><i class="fa-solid fa-calendar-day text-slate-500 mr-1"></i>Release: ${esc(fmtDate(o.deadline))}</span>
+                        </div>
+                    </div>
+                    <div class="flex items-center justify-between md:flex-col md:items-end gap-2 border-t md:border-t-0 border-slate-800 pt-2 md:pt-0">
+                        <div class="text-right">
+                            <div class="text-xs text-slate-400">Total</div>
+                            <div class="text-base font-extrabold text-emerald-400">${fmtMoney(o.total)}</div>
+                        </div>
+                        <button onclick="openDetailModal(${jsArg(o.id)})" class="px-3 py-1.5 bg-cyan-950 hover:bg-cyan-900 text-cyan-300 border border-cyan-800 rounded-lg text-xs font-semibold transition flex items-center gap-1">
+                            <i class="fa-solid fa-eye"></i> Details &amp; Bill
+                        </button>
+                    </div>
+                </div>`).join('');
+        }
+
+        // ==============================================================
+        // Technician
+        // ==============================================================
+        function setTechFilter(filter) {
+            techFilter = filter;
+            document.querySelectorAll('.tech-tab-btn').forEach(b => {
+                b.classList.remove('bg-cyan-600', 'text-white');
+                b.classList.add('text-slate-400');
+            });
+            const active = document.getElementById(`tech-tab-${filter}`);
+            if (active) { active.classList.remove('text-slate-400'); active.classList.add('bg-cyan-600', 'text-white'); }
+            renderTechDashboard();
+        }
+
+        function renderTechDashboard() {
+            const grid = document.getElementById('tech-jobs-grid');
+            if (!grid) return;
+            const now = new Date();
+            const pending = orders.filter(o => !isCompleted(o)).sort((a, b) => new Date(a.deadline) - new Date(b.deadline));
+            const completed = orders.filter(isCompleted).sort((a, b) => new Date(b.completedAt || b.updatedAt) - new Date(a.completedAt || a.updatedAt));
+            const dead = completed.filter(o => o.outcome === 'Unrepairable');
+
+            document.getElementById('tech-stat-pending').innerText = pending.length;
+            document.getElementById('tech-stat-completed').innerText = completed.length;
+            document.getElementById('tech-stat-successful').innerText = completed.length - dead.length;
+            document.getElementById('tech-stat-dead').innerText = dead.length;
+
+            const list = {
+                PENDING: pending,
+                COMPLETED: completed,
+                SUCCESSFUL: completed.filter(o => o.outcome !== 'Unrepairable'),
+                UNREPAIRABLE: dead,
+                ALL: [...pending, ...completed]
+            }[techFilter] || pending;
+
+            if (!list.length) {
+                grid.innerHTML = `<div class="col-span-full text-center py-12 text-slate-500 text-sm">${techFilter === 'PENDING' ? 'No pending repairs. 🎉' : 'No jobs in this list.'}</div>`;
+                return;
+            }
+
+            grid.innerHTML = list.map(o => {
+                const done = isCompleted(o);
+                const deadline = new Date(o.deadline);
+                const hoursLeft = (deadline - now) / 36e5;
+                const overdue = !done && hoursLeft < 0;
+                const urgent = !done && hoursLeft >= 0 && hoursLeft <= 24;
+                const rank = done ? 0 : pending.indexOf(o) + 1;
+                const locked = o.status === 'CEO Confirmed';
+
+                let priority;
+                if (done) priority = '';
+                else if (overdue) priority = `<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-rose-500/20 text-rose-400 border border-rose-500/40 badge-urgent"><i class="fa-solid fa-triangle-exclamation mr-1"></i>OVERDUE</span>`;
+                else if (urgent) priority = `<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/20 text-amber-400 border border-amber-500/40"><i class="fa-solid fa-bolt mr-1"></i>DUE WITHIN 24H</span>`;
+                else priority = `<span class="px-2 py-0.5 rounded text-[10px] font-semibold bg-slate-800 text-slate-400 border border-slate-700">Normal</span>`;
+
+                const parts = o.parts && o.parts.length
+                    ? o.parts.map(p => `<span class="bg-slate-800 text-amber-300 text-[10px] px-2 py-0.5 rounded border border-slate-700 font-mono">${esc(p.sku)} ×${esc(p.qty)}</span>`).join(' ')
+                    : `<span class="text-slate-500 text-[11px]">No components logged</span>`;
+
+                return `
+                    <div class="glass-panel p-5 rounded-2xl flex flex-col justify-between space-y-4 border ${overdue ? 'border-rose-500/50' : 'border-slate-800'} shadow-lg">
+                        <div class="space-y-3">
+                            <div class="flex items-center justify-between gap-2">
+                                <div class="flex items-center gap-2">
+                                    ${rank ? `<span class="text-[10px] font-extrabold px-1.5 py-0.5 rounded bg-cyan-500/20 text-cyan-300 border border-cyan-500/30">#${rank}</span>` : ''}
+                                    <span class="font-mono text-xs font-bold text-cyan-400">${esc(o.id)}</span>
+                                </div>
+                                ${priority}
+                            </div>
+                            <div>
+                                <h4 class="text-base font-bold text-white">${esc(o.product)}</h4>
+                                <p class="text-xs text-slate-400"><i class="fa-solid fa-user text-slate-500 mr-1"></i>${esc(o.customer)} · ${esc(o.phone)}</p>
+                            </div>
+                            <div class="bg-slate-900/80 p-3 rounded-xl border border-slate-800/80 text-xs space-y-1.5">
+                                <div class="text-slate-400"><strong class="text-slate-300">Fault:</strong> ${esc(o.notes || 'No description.')}</div>
+                                <div class="text-slate-400"><strong class="text-slate-300">Release date:</strong> <span class="${overdue ? 'text-rose-400 font-bold' : 'text-slate-200'}">${esc(fmtDate(o.deadline))}</span></div>
+                            </div>
+                            <div class="space-y-1.5 text-xs">
+                                <div class="text-slate-400 font-semibold flex items-center gap-1"><i class="fa-solid fa-comment-dots text-cyan-400"></i> Comment:</div>
+                                <div class="bg-slate-950/60 p-2 rounded-lg text-slate-300 italic text-[11px] min-h-[38px] border border-slate-800/60 whitespace-pre-wrap">${esc(o.comments || 'No comment yet.')}</div>
+                            </div>
+                            <div class="space-y-1">
+                                <div class="text-[11px] font-semibold text-slate-400">Components:</div>
+                                <div class="flex flex-wrap gap-1">${parts}</div>
+                            </div>
+                        </div>
+                        <div class="pt-3 border-t border-slate-800 flex items-center justify-between gap-2 flex-wrap">
+                            <div>${statusBadge(o)}</div>
+                            ${locked
+                                ? `<span class="text-[11px] text-slate-500"><i class="fa-solid fa-lock mr-1"></i>Billed</span>`
+                                : `<button onclick="openTechModal(${jsArg(o.id)})" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-cyan-400 hover:text-cyan-300 border border-slate-700 rounded-xl text-xs font-bold transition flex items-center gap-1.5"><i class="fa-solid fa-pen-to-square"></i> Update</button>`}
+                        </div>
+                    </div>`;
+            }).join('');
+        }
+
+        function toggleOutcomeField() {
+            const completed = document.getElementById('modal-stage').value === 'COMPLETED';
+            document.getElementById('outcome-container').classList.toggle('hidden', !completed);
+        }
+
+        function openTechModal(id) {
+            const o = orders.find(x => x.id === id);
+            if (!o) return;
+            document.getElementById('modal-order-id').value = o.id;
+            document.getElementById('modal-bill-subtitle').innerText = `${o.id} · ${o.product}`;
+            document.getElementById('modal-stage').value = isCompleted(o) ? 'COMPLETED' : 'PENDING';
+            document.getElementById('modal-outcome').value = o.outcome === 'Unrepairable' ? 'Unrepairable' : 'Successful';
+            document.getElementById('modal-comment').value = o.comments || '';
+            toggleOutcomeField();
+            const c = document.getElementById('modal-parts-container');
+            c.innerHTML = '';
+            (o.parts && o.parts.length ? o.parts : [{ sku: '', qty: 1 }]).forEach(p => addPartRow(p.sku, p.qty));
+            openModal('tech-modal');
+        }
+
+        function appendQuickComment(text) {
+            const t = document.getElementById('modal-comment');
+            t.value = t.value.trim() ? t.value.trim() + '\n' + text : text;
+        }
+
+        function addPartRow(sku = '', qty = 1) {
+            const div = document.createElement('div');
+            div.className = 'flex items-center gap-2 part-row';
+            div.innerHTML = `
+                <input type="text" placeholder="SKU number or name" maxlength="120" value="${esc(sku)}" class="part-sku flex-1 bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white focus:border-cyan-500 focus:outline-none">
+                <input type="number" min="1" value="${esc(qty)}" class="part-qty w-24 bg-slate-900 border border-slate-700 rounded-lg px-2 py-1.5 text-xs text-white focus:border-cyan-500 focus:outline-none" title="Quantity">
+                <button type="button" onclick="this.parentElement.remove()" class="w-6 text-rose-400 hover:text-rose-300 p-1"><i class="fa-solid fa-xmark text-sm"></i></button>`;
+            document.getElementById('modal-parts-container').appendChild(div);
+        }
+
+        async function handleTechUpdateSave(e) {
+            e.preventDefault();
+            const parts = [...document.querySelectorAll('#modal-parts-container .part-row')].map(r => ({
+                sku: r.querySelector('.part-sku').value.trim(),
+                qty: parseInt(r.querySelector('.part-qty').value, 10) || 1
+            })).filter(p => p.sku);
+            try {
+                await Net.call('updateTechLog', {
+                    id: document.getElementById('modal-order-id').value,
+                    stage: document.getElementById('modal-stage').value,
+                    outcome: document.getElementById('modal-outcome').value,
+                    comments: document.getElementById('modal-comment').value,
+                    parts
+                });
+                closeModal('tech-modal');
+                toast('Saved. Manager and Front Desk can see it now.');
+            } catch (err) { toast(err.message, 'err'); }
+        }
+
+        // ==============================================================
+        // CEO
+        // ==============================================================
+        function renderCEODashboard() {
+            let income = 0, incomeMonth = 0, pending = 0, completed = 0, ok = 0, dead = 0, waiting = 0;
+            const partsMap = {};
+            const now = new Date();
+            orders.forEach(o => {
+                if (isCompleted(o)) {
+                    completed++;
+                    o.outcome === 'Unrepairable' ? dead++ : ok++;
+                } else pending++;
+                if (o.status === 'Waiting for CEO Confirmation') waiting++;
+                if (o.status === 'CEO Confirmed') {
+                    income += o.total;
+                    const d = new Date(o.confirmedAt || o.updatedAt);
+                    if (d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth()) incomeMonth += o.total;
+                }
+                (o.parts || []).forEach(p => {
+                    const k = p.sku.toUpperCase();
+                    partsMap[k] = partsMap[k] || { sku: p.sku, qty: 0, cost: 0 };
+                    partsMap[k].qty += p.qty || 1;
+                    partsMap[k].cost += (p.qty || 1) * (p.unitPrice || 0);
+                });
+            });
+            document.getElementById('kpi-income').innerText = fmtMoney(income);
+            document.getElementById('kpi-income-month').innerText = `This month: ${fmtMoney(incomeMonth)}`;
+            document.getElementById('kpi-pending-repairs').innerText = pending;
+            document.getElementById('kpi-completed-repairs').innerText = completed;
+            document.getElementById('kpi-successful-repairs').innerText = ok;
+            document.getElementById('kpi-dead-repairs').innerText = dead;
+            document.getElementById('kpi-waiting-ceo').innerText = waiting;
+            renderCEOTable();
+            renderCEOPartsSummary(Object.values(partsMap));
+        }
+
+        function renderCEOTable() {
+            const tbody = document.getElementById('ceo-table-body');
+            if (!tbody) return;
+            const q = (document.getElementById('ceo-search').value || '').toLowerCase();
+            const f = document.getElementById('ceo-filter-status').value;
+            const list = orders.filter(o => {
+                if (q && ![o.id, o.customer, o.phone, o.product].some(v => (v || '').toLowerCase().includes(q))) return false;
+                const done = isCompleted(o);
+                switch (f) {
+                    case 'PENDING_GROUP': return !done;
+                    case 'COMPLETED_GROUP': return done;
+                    case 'SUCCESSFUL': return done && o.outcome !== 'Unrepairable';
+                    case 'UNREPAIRABLE': return done && o.outcome === 'Unrepairable';
+                    case 'WAITING_CEO': return o.status === 'Waiting for CEO Confirmation';
+                    case 'CEO_CONFIRMED': return o.status === 'CEO Confirmed';
+                    default: return true;
+                }
+            });
+            if (!list.length) {
+                tbody.innerHTML = `<tr><td colspan="8" class="p-6 text-center text-slate-500">${orders.length ? 'No matching repairs.' : 'No repairs yet.'}</td></tr>`;
+                return;
+            }
+            tbody.innerHTML = list.map(o => {
+                const id = jsArg(o.id);
+                let action;
+                if (o.status === 'Waiting for CEO Confirmation') {
+                    action = `<button onclick="openCEOConfirmModal(${id})" class="px-3 py-1 bg-purple-600 hover:bg-purple-500 text-white rounded-lg text-[11px] font-bold shadow-md shadow-purple-600/30 transition">Review &amp; Confirm</button>`;
+                } else {
+                    action = `<button onclick="openDetailModal(${id})" class="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-cyan-400 rounded-lg text-[11px] border border-slate-700 transition" title="View"><i class="fa-solid fa-eye"></i></button>`;
+                    if (o.status === 'CEO Confirmed') action += ` <button onclick="openCEOConfirmModal(${id})" class="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-purple-300 rounded-lg text-[11px] border border-slate-700 transition" title="Edit bill"><i class="fa-solid fa-pen"></i></button>`;
+                }
+                action += ` <button onclick="deleteOrder(${id})" class="px-2 py-1 text-rose-400 hover:text-rose-300 text-[11px]" title="Delete"><i class="fa-solid fa-trash-can"></i></button>`;
+                return `
+                    <tr class="hover:bg-slate-800/50 transition">
+                        <td class="p-3 font-mono font-bold text-cyan-400 whitespace-nowrap">${esc(o.id)}</td>
+                        <td class="p-3 font-medium text-slate-200">${esc(o.customer)}<br><span class="text-[10px] text-slate-400">${esc(o.phone)}</span></td>
+                        <td class="p-3 text-slate-300">${esc(o.product)}<br><span class="text-[10px] text-slate-500">Release: ${esc(fmtDate(o.deadline))}</span></td>
+                        <td class="p-3 text-slate-300 font-mono whitespace-nowrap">${fmtMoney((o.fee || 0) + (o.extraFee || 0))}</td>
+                        <td class="p-3 text-amber-300 font-mono whitespace-nowrap">${fmtMoney(partsTotal(o))}</td>
+                        <td class="p-3 font-bold text-emerald-400 font-mono whitespace-nowrap">${fmtMoney(o.total)}</td>
+                        <td class="p-3">${statusBadge(o)}</td>
+                        <td class="p-3 text-right whitespace-nowrap">${action}</td>
+                    </tr>`;
+            }).join('');
+        }
+
+        function renderCEOPartsSummary(items) {
+            const c = document.getElementById('ceo-parts-summary');
+            if (!items.length) { c.innerHTML = `<div class="text-center py-6 text-slate-500 text-xs">No components recorded yet.</div>`; return; }
+            items.sort((a, b) => b.qty - a.qty);
+            c.innerHTML = items.map(i => `
+                <div class="flex items-center justify-between p-2.5 bg-slate-900 rounded-xl border border-slate-800 text-xs">
+                    <div class="flex items-center space-x-2">
+                        <i class="fa-solid fa-microchip text-amber-400"></i>
+                        <div>
+                            <div class="font-mono text-slate-200 font-semibold">${esc(i.sku)}</div>
+                            <div class="text-[10px] text-slate-400">Value: ${fmtMoney(i.cost)}</div>
+                        </div>
+                    </div>
+                    <span class="px-2.5 py-0.5 bg-amber-500/10 text-amber-400 border border-amber-500/20 rounded-full font-bold text-xs">${i.qty} used</span>
+                </div>`).join('');
+        }
+
+        function openCEOConfirmModal(id) {
+            const o = orders.find(x => x.id === id);
+            if (!o) return;
+            document.getElementById('ceo-modal-order-id').value = o.id;
+            document.getElementById('ceo-modal-subtitle').innerText = `${o.id} · ${o.product}`;
+            document.getElementById('ceo-review-customer').innerText = `${o.customer} (${o.phone})`;
+            document.getElementById('ceo-review-product').innerText = o.product;
+            document.getElementById('ceo-review-notes').innerText =
+                `Result: ${o.outcome === 'Unrepairable' ? 'Dead / Unrepairable' : 'Successful'}\n${o.comments || 'No technician comment.'}`;
+            document.getElementById('ceo-base-fee').value = o.fee || 0;
+            document.getElementById('ceo-extra-fee').value = o.extraFee || 0;
+            const ed = document.getElementById('ceo-parts-editor');
+            ed.innerHTML = o.parts && o.parts.length ? o.parts.map((p, i) => `
+                <div class="flex items-center justify-between bg-slate-900 p-2.5 rounded-xl border border-slate-800 text-xs gap-2">
+                    <div class="w-1/2 font-mono text-cyan-300 font-semibold">${esc(p.sku)} (×${esc(p.qty)})</div>
+                    <div class="flex items-center gap-1.5 w-1/2">
+                        <span class="text-slate-400 text-[11px]">Rs.</span>
+                        <input type="number" step="0.01" min="0" value="${esc(p.unitPrice || 0)}" data-idx="${i}" data-qty="${esc(p.qty)}" oninput="calculateCEOGrandTotal()"
+                            class="ceo-part-price w-full bg-slate-950 border border-slate-700 rounded-lg px-2 py-1 text-xs text-white focus:border-purple-500 focus:outline-none">
+                    </div>
+                </div>`).join('')
+                : `<div class="text-slate-500 text-xs italic py-1">No components used.</div>`;
+            calculateCEOGrandTotal();
+            openModal('ceo-confirm-modal');
+        }
+
+        function calculateCEOGrandTotal() {
+            let total = (parseFloat(document.getElementById('ceo-base-fee').value) || 0) + (parseFloat(document.getElementById('ceo-extra-fee').value) || 0);
+            document.querySelectorAll('.ceo-part-price').forEach(inp => { total += (parseInt(inp.dataset.qty, 10) || 1) * (parseFloat(inp.value) || 0); });
+            document.getElementById('ceo-modal-grand-total').innerText = fmtMoney(total);
+        }
+
+        async function handleCEOBillingConfirm(e) {
+            e.preventDefault();
+            try {
+                await Net.call('confirmBilling', {
+                    id: document.getElementById('ceo-modal-order-id').value,
+                    fee: document.getElementById('ceo-base-fee').value,
+                    extraFee: document.getElementById('ceo-extra-fee').value,
+                    partPrices: [...document.querySelectorAll('.ceo-part-price')].map(i => i.value)
+                });
+                closeModal('ceo-confirm-modal');
+                toast('Billing confirmed and added to income.');
+            } catch (err) { toast(err.message, 'err'); }
+        }
+
+        async function deleteOrder(id) {
+            if (!confirm(`Delete repair order ${id}? (A copy stays in the activity log.)`)) return;
+            try { await Net.call('deleteOrder', { id }); toast(`Order ${id} deleted.`); } catch (err) { toast(err.message, 'err'); }
+        }
+
+        async function resetRolePin(role) {
+            if (!confirm(`Reset the ${ROLE_META[role].name} PIN? That laptop will be logged out and the next person to log in as ${ROLE_META[role].name} will create a new PIN.`)) return;
+            try { await Net.call('resetPin', { role }); toast(`${ROLE_META[role].name} PIN reset.`); } catch (err) { toast(err.message, 'err'); }
+        }
+
+        function renderServerInfo() {
+            if (!serverInfo || !document.getElementById('ceo-share-url')) return;
+            document.getElementById('ceo-share-url').innerText = serverInfo.primaryUrl;
+            document.getElementById('ceo-share-ip').innerText = serverInfo.ipUrls.length ? `If the name does not work, use the current IP: ${serverInfo.ipUrls.join('  ')}` : '';
+            document.getElementById('ceo-db-path').innerText = serverInfo.dbPath;
+        }
+
+        function copyShareUrl() {
+            const url = serverInfo ? serverInfo.primaryUrl : '';
+            navigator.clipboard?.writeText(url).then(() => toast('Link copied.'), () => toast(url, 'info'));
+        }
+
+        function renderPresence() {
+            const c = document.getElementById('ceo-presence');
+            if (!c) return;
+            c.innerHTML = presence.length ? presence.map(d => `
+                <div class="flex items-center justify-between bg-slate-900 px-2.5 py-1.5 rounded-lg border border-slate-800 text-[11px]">
+                    <span class="flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-emerald-400"></span><i class="fa-solid ${ROLE_META[d.role].icon} text-slate-400"></i><span class="text-slate-200">${esc(d.device || d.roleName)}</span></span>
+                    <span class="text-slate-500 font-mono">${esc(d.roleName)} · ${esc(d.ip)}</span>
+                </div>`).join('') : `<div class="text-[11px] text-slate-500">Only you.</div>`;
+        }
+
+        async function openActivityModal() {
+            openModal('activity-modal');
+            const body = document.getElementById('activity-body');
+            body.innerHTML = '<div class="text-slate-500 p-4">Loading...</div>';
+            try {
+                const rows = await Net.call('activityLog', {});
+                body.innerHTML = `<table class="w-full text-left"><tbody class="divide-y divide-slate-800">${rows.map(r => `
+                    <tr><td class="py-1.5 pr-3 text-slate-500 whitespace-nowrap">${esc(fmtDate(r.ts))}</td>
+                        <td class="py-1.5 pr-3 text-slate-300">${esc(r.device || '')} <span class="text-slate-500">(${esc(ROLE_META[r.role] ? ROLE_META[r.role].name : (r.role || ''))})</span></td>
+                        <td class="py-1.5 pr-3 text-cyan-300 font-mono">${esc(r.action.replace('CEO_', 'MANAGER_'))}</td>
+                        <td class="py-1.5 text-slate-400 font-mono">${esc(r.orderId || '')}</td></tr>`).join('')}</tbody></table>`;
+            } catch (err) { body.innerHTML = `<div class="text-rose-300 p-4">${esc(err.message)}</div>`; }
+        }
+
+        function downloadWithToken(e, path) {
+            e.preventDefault();
+            window.location.href = `${path}?token=${encodeURIComponent(session.token)}`;
+        }
+        const downloadBackup = e => downloadWithToken(e, '/api/backup');
+        const downloadExportJson = e => downloadWithToken(e, '/api/export.json');
+
+        async function importOldBackup(input) {
+            const file = input.files[0];
+            input.value = '';
+            if (!file) return;
+            try {
+                const text = await file.text();
+                JSON.parse(text);
+                const r = await api('/api/import', { method: 'POST', body: text });
+                toast(`Imported ${r.added} orders. Skipped ${r.skipped} (already existed or invalid).`);
+            } catch (err) { toast('Import failed: ' + err.message, 'err'); }
+        }
+
+        // ==============================================================
+        // Shared: details / invoice, badges, PIN change
+        // ==============================================================
+        function openDetailModal(id) {
+            const o = orders.find(x => x.id === id);
+            if (!o) return;
+            document.getElementById('detail-bill-id').innerText = o.id;
+            const pt = partsTotal(o);
+            const partsHtml = o.parts && o.parts.length ? `
+                <div class="space-y-1.5 mt-2">
+                    <div class="font-semibold text-slate-300 text-xs">Components used:</div>
+                    <table class="w-full text-left bg-slate-950 rounded-xl overflow-hidden border border-slate-800">
+                        <thead class="bg-slate-900 text-slate-400 text-[11px] font-semibold"><tr><th class="p-2">Component</th><th class="p-2">Qty</th><th class="p-2">Unit</th><th class="p-2 text-right">Subtotal</th></tr></thead>
+                        <tbody class="divide-y divide-slate-800 text-[11px] text-slate-300">${o.parts.map(p => `
+                            <tr><td class="p-2 font-mono text-cyan-300">${esc(p.sku)}</td><td class="p-2">${esc(p.qty)}</td>
+                                <td class="p-2">${fmtMoney(p.unitPrice)}</td><td class="p-2 text-right font-semibold text-amber-300">${fmtMoney((p.qty || 1) * (p.unitPrice || 0))}</td></tr>`).join('')}
+                        </tbody>
+                    </table>
+                </div>` : `<div class="text-slate-500 italic text-[11px] mt-1">No components replaced.</div>`;
+
+            document.getElementById('detail-modal-body').innerHTML = `
+                <div class="bg-slate-900/90 p-4 rounded-xl border border-slate-800 space-y-2">
+                    <div class="flex items-center justify-between border-b border-slate-800 pb-2"><span class="text-slate-400">Status:</span><span>${statusBadge(o)}</span></div>
+                    <div class="grid grid-cols-2 gap-2 text-xs pt-1">
+                        <div><span class="text-slate-400">Customer:</span><br><strong class="text-white">${esc(o.customer)}</strong></div>
+                        <div><span class="text-slate-400">Contact:</span><br><strong class="text-cyan-400 font-mono">${esc(o.phone)}</strong></div>
+                        <div class="col-span-2"><span class="text-slate-400">Product:</span><br><strong class="text-white">${esc(o.product)}</strong></div>
+                        <div><span class="text-slate-400">Received:</span><br><span class="text-slate-200">${esc(fmtDate(o.createdAt))}</span></div>
+                        <div><span class="text-slate-400">Release date:</span><br><span class="text-slate-200">${esc(fmtDate(o.deadline))}</span></div>
+                        ${o.notes ? `<div class="col-span-2"><span class="text-slate-400">Fault:</span><br><span class="text-slate-200">${esc(o.notes)}</span></div>` : ''}
+                    </div>
+                </div>
+                <div class="bg-slate-900/90 p-4 rounded-xl border border-slate-800 space-y-2">
+                    <div class="text-slate-400 font-semibold flex items-center gap-1.5 text-xs"><i class="fa-solid fa-screwdriver-wrench text-amber-400"></i> Technician report:</div>
+                    <p class="p-2.5 bg-slate-950 rounded-lg text-slate-300 italic text-[11px] border border-slate-800 whitespace-pre-wrap">${esc(o.comments || 'Repair in progress.')}</p>
+                    ${partsHtml}
+                </div>
+                <div class="bg-slate-900/90 p-4 rounded-xl border border-slate-800 space-y-1.5 text-xs">
+                    <div class="flex justify-between text-slate-300"><span>Service charge:</span><span class="font-mono">${fmtMoney(o.fee)}</span></div>
+                    ${o.extraFee > 0 ? `<div class="flex justify-between text-slate-300"><span>Extra / handling:</span><span class="font-mono">${fmtMoney(o.extraFee)}</span></div>` : ''}
+                    <div class="flex justify-between text-amber-300"><span>Components:</span><span class="font-mono">${fmtMoney(pt)}</span></div>
+                    <div class="flex justify-between text-sm font-extrabold text-emerald-400 border-t border-slate-700 pt-2 mt-1"><span>TOTAL:</span><span class="font-mono text-base">${fmtMoney(orderTotal(o))}</span></div>
+                    ${o.status !== 'CEO Confirmed' ? '<div class="text-[10px] text-slate-500 pt-1">Final amount is confirmed by the Manager after the repair.</div>' : ''}
+                </div>`;
+            openModal('detail-view-modal');
+        }
+
+        function statusBadge(o) {
+            if (!isCompleted(o)) {
+                return o.status === 'In Progress'
+                    ? `<span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-500/20 text-blue-400 border border-blue-500/30"><i class="fa-solid fa-gear fa-spin mr-1"></i>Pending: In Progress</span>`
+                    : `<span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/20 text-amber-400 border border-amber-500/30"><i class="fa-solid fa-clock mr-1"></i>Pending: In Queue</span>`;
+            }
+            const result = o.outcome === 'Unrepairable'
+                ? `<span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-500/20 text-rose-400 border border-rose-500/30"><i class="fa-solid fa-skull mr-1"></i>Dead</span>`
+                : `<span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30"><i class="fa-solid fa-wand-magic-sparkles mr-1"></i>Successful</span>`;
+            const billing = o.status === 'CEO Confirmed'
+                ? `<span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-cyan-500/20 text-cyan-300 border border-cyan-500/30"><i class="fa-solid fa-check-double mr-1"></i>Billed</span>`
+                : `<span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-purple-500/20 text-purple-300 border border-purple-500/30"><i class="fa-solid fa-user-clock mr-1"></i>Waiting Manager</span>`;
+            return `<div class="flex items-center gap-1.5 flex-wrap">${result}${billing}</div>`;
+        }
+
+        function openPinModal() {
+            document.getElementById('pin-new').value = '';
+            document.getElementById('pin-new2').value = '';
+            openModal('pin-modal');
+        }
+
+        async function submitPinChange(e) {
+            e.preventDefault();
+            const a = document.getElementById('pin-new').value.trim();
+            const b = document.getElementById('pin-new2').value.trim();
+            if (!/^\d{4,8}$/.test(a)) return toast('PIN must be 4 to 8 digits.', 'err');
+            if (a !== b) return toast('The two PINs do not match.', 'err');
+            try { await Net.call('changeOwnPin', { pin: a }); closeModal('pin-modal'); toast('PIN changed.'); } catch (err) { toast(err.message, 'err'); }
+        }
+    </script>
+</body>
+</html>
